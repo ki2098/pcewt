@@ -57,3 +57,17 @@ def compute_pressure_rhs(U : np.ndarray, b : np.ndarray, M : np.ndarray, dx, dt,
                 vn = U[g, i, j + 1, 1]
                 vs = U[g, i, j - 1, 1]
                 b[g, i, j] = (ue - uw + vn - vs)/(2*dx*dt)
+
+def sweep_sor_at_cell(A: np.ndarray, x : np.ndarray, b : np.ndarray, relax_rate, i, j):
+    Ac = A[i, j, 0]
+    Ae = A[i, j, 1]
+    Aw = A[i, j, 2]
+    An = A[i, j, 3]
+    As = A[i, j, 4]
+    xc = x[i, j]
+    xe = x[i + 1, j]
+    xw = x[i - 1, j]
+    xn = x[i, j + 1]
+    xs = x[i, j - 1]
+    relax = (b[i, j] - (Ac*xc + Ae*xe + Aw*xw + An*xn + As*xs))/Ac
+    x[i, j] = xc + relax_rate*relax
