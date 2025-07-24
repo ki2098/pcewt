@@ -68,15 +68,15 @@ function prepare_pressure_eq_A(dx, sz, gc)
     return A, max_diag
 end
 
-function init_pressure_eq(P, dx, dz, gc)
+function init_pressure_eq(P, dx, sz, gc)
     A, max_diag = prepare_pressure_eq_A(dx, sz, gc)
-    b = zeros(sz[1], sz[2], P + 1)
+    b = zeros(sz..., P + 1)
     prob = LinearSolve.LinearProblem(A, vec(@view b[:, :, 1]))
     global linsolve = LinearSolve.init(prob)
     return A, b, max_diag
 end
 
-function solve_pressure_eq(p, b, P)
+function solve_pressure_eq!(p, b, P)
     for K = 1:P + 1
         bK = @view b[:, :, K]
         linsolve.b = bK

@@ -35,7 +35,7 @@ function cell_diffusionK(fK, viscosity, dx, i, j)
     return viscosity*(feK + fwK + fnK + fsK - 4*fcK)/(dx^2)
 end
 
-function peudo_U!(uold, vold, u, v, M, P, viscosity, dx, dt, sz, gc)
+function pseudo_U!(uold, vold, u, v, M, P, viscosity, dx, dt, sz, gc)
     for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
         uc = uold[i, j, :]
         vc = vold[i, j, :]
@@ -87,4 +87,17 @@ function update_U_by_grad_p!(u, v, p, P, dx, dt, sz, gc)
             vK[i, j] -= dt*dpKdy
         end
     end
+end
+
+function div_UK!(u, v, divU, dx, sz, gc)
+    for K = 1:P + 1
+        uK = @view u[:, :, K]
+        vK = @view v[:, :, K]
+        for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
+            divU[i, j, K] = cell_div_UK(uK, vK, dx, i, j)
+        end
+    end
+    mag = norm(divU)
+    inner_cell_count = (sz[1] - 2*gc)*(sz[2] - 2*gc)
+    return mag/sqrt(inner_cell_count)
 end
