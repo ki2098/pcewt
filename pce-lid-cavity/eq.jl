@@ -79,7 +79,7 @@ end
 function solve_pressure_eq!(p, b, P)
     for K = 1:P + 1
         bK = @view b[:, :, K]
-        linsolve.b = bK
+        linsolve.b = vec(bK)
         solutionK = LinearSolve.solve!(linsolve)
         p[:, :, K] .= reshape(solutionK.u, size(bK))
     end

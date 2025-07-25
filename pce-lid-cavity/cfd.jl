@@ -8,7 +8,7 @@ function cell_convectionK(uc, vc, f, M, K, P, dx, i, j)
         MIJK = M[I, J, K]
         ucI = uc[I]
         vcI = vc[I]
-        fJ = @view f[:,:,J]
+        fJ = @view f[:, :, J]
         fcJ  = fJ[i, j]
         feJ  = fJ[i + 1, j]
         feeJ = fJ[i + 2, j]
@@ -42,7 +42,7 @@ function pseudo_U!(uold, vold, u, v, M, P, viscosity, dx, dt, sz, gc)
         for K = 1:P + 1
             uK_convection = cell_convectionK(uc, vc, uold, M, K, P, dx, i, j)
             uK_diffusion = cell_diffusionK((@view uold[:, :, K]), viscosity, dx, i, j)
-            vK_convection = cell_convectionK(uv, vc, vold, M, K, P, dx, i, j)
+            vK_convection = cell_convectionK(uc, vc, vold, M, K, P, dx, i, j)
             vK_diffusion = cell_diffusionK((@view vold[:, :, K]), viscosity, dx, i, j)
             u[i, j, K] = uc[K] + dt*(- uK_convection + uK_diffusion)
             v[i, j, K] = vc[K] + dt*(- vK_convection + vK_diffusion)
