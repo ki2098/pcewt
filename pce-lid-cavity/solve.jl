@@ -22,17 +22,17 @@ function time_integral!(
     return rms_divU
 end
 
-function get_var_U(u, v, normsq, sz, gc)
-    var_u = zeros(sz)
-    var_v = zeros(sz)
+function get_U_var(u, v, normsq, sz, gc)
+    u_var = zeros(sz)
+    v_var = zeros(sz)
     for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
-        cell_var_u, cell_var_v = 0.0, 0.0
+        cell_u_var, cell_v_var = 0.0, 0.0
         for K = 2:P + 1
-            cell_var_u += u[i, j, K]^2 * normsq[K]
-            cell_var_v += v[i, j, K]^2 * normsq[K]
+            cell_u_var += u[i, j, K]^2 * normsq[K]
+            cell_v_var += v[i, j, K]^2 * normsq[K]
         end
-        var_u[i, j] = cell_var_u
-        var_v[i, j] = cell_var_v
+        u_var[i, j] = cell_u_var
+        v_var[i, j] = cell_v_var
     end
-    return var_u, var_v
+    return u_var, v_var
 end

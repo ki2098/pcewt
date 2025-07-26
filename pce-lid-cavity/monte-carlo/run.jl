@@ -28,7 +28,7 @@ println("total steps = $(Int(T/dt))")
 println("max A diag = $max_A_diag")
 println()
 using Distributions
-sample_count = 200
+sample_count = 500
 X = Normal(lid_u_mean, lid_u_sd)
 lid_u = rand(X, sample_count)
 

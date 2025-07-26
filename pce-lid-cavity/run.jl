@@ -14,7 +14,7 @@ gc = 2
 dx = cavity_size/n
 sz = (n + 2*gc, n + 2*gc)
 Re = 100
-P = 5
+P = 6
 
 x_coords = [dx*(i - gc - 0.5) - 0.5*cavity_size for i in 1:sz[1]]
 y_coords = [dx*(j - gc - 0.5) - 0.5*cavity_size for j in 1:sz[2]]
@@ -59,13 +59,13 @@ for step = 1:max_step
 end
 println()
 
-var_u, var_v = get_var_U(u, v, normsq, sz, gc)
+u_var, v_var = get_U_var(u, v, normsq, sz, gc)
 
 mkpath("data")
 open("data/result.csv", "w") do f
-    write(f, "x,y,z,Eu,Varu,Ev,Varv\n")
+    write(f, "x,y,z,u_mean,u_var,v_mean,var_v\n")
     for j in gc+1:sz[2]-gc, i in gc+1:sz[1]-gc
-        write(f, "$(x_coords[i]),$(y_coords[j]),0,$(u[i,j,1]),$(var_u[i, j]),$(v[i,j,1]),$(var_v[i, j])\n")
+        write(f, "$(x_coords[i]),$(y_coords[j]),0,$(u[i,j,1]),$(u_var[i, j]),$(v[i,j,1]),$(v_var[i, j])\n")
     end
 end
 
