@@ -1,7 +1,7 @@
 using PolyChaos
 
 function prepare_M(P)
-    op = GaussOrthoPoly(P, Nrec = 100)
+    op = GaussOrthoPoly(P, Nrec = 100, addQuadrature = true)
     normsq = computeSP2(op)
     t = Tensor(3, op)
     T = [t.get([i, j, k]) for i=0:P, j=0:P, k=0:P]
@@ -9,7 +9,7 @@ function prepare_M(P)
     for i = 1:P + 1, j = 1:P + 1, k = 1:P + 1
         M[i, j, k] = round(T[i, j, k]/normsq[k], digits = 6)
     end
-    return M
+    return M, normsq
 end
 
 function show_M(M)

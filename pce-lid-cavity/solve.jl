@@ -21,3 +21,18 @@ function time_integral!(
     rms_divU = div_UK!(u, v, divU, dx, sz, gc)
     return rms_divU
 end
+
+function get_var_U(u, v, normsq, sz, gc)
+    var_u = zeros(sz)
+    var_v = zeros(sz)
+    for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
+        cell_var_u, cell_var_v = 0.0, 0.0
+        for K = 2:P + 1
+            cell_var_u += u[i, j, K]^2 * normsq[K]
+            cell_var_v += v[i, j, K]^2 * normsq[K]
+        end
+        var_u[i, j] = cell_var_u
+        var_v[i, j] = cell_var_v
+    end
+    return var_u, var_v
+end
