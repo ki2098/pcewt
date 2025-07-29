@@ -12,7 +12,7 @@ n = 100
 gc = 2
 dx = cavity_size/n
 sz = (n + 2*gc, n + 2*gc)
-Re = 100
+Re = 400
 
 A, b, max_A_diag = init_linear_eq(dx, sz, gc)
 

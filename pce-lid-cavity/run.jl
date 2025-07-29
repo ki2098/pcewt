@@ -13,8 +13,8 @@ n = 100
 gc = 2
 dx = cavity_size/n
 sz = (n + 2*gc, n + 2*gc)
-Re = 100
-P = 6
+Re = 400
+P = 5
 
 x_coords = [dx*(i - gc - 0.5) - 0.5*cavity_size for i in 1:sz[1]]
 y_coords = [dx*(j - gc - 0.5) - 0.5*cavity_size for j in 1:sz[2]]
