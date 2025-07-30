@@ -35,7 +35,7 @@ function cell_diffusionK(fK, viscosity, dx, i, j)
     return viscosity*(feK + fwK + fnK + fsK - 4*fcK)/(dx^2)
 end
 
-function pseudo_U!(uold, vold, u, v, T2, T3, P, viscosity, dx, dt, sz, gc)
+function pseudo_U!(uold, vold, u, v, fx, fy, T2, T3, P, viscosity, dx, dt, sz, gc)
     for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
         uc = uold[i, j, :]
         vc = vold[i, j, :]

@@ -19,7 +19,7 @@ P = 5
 x_coords = [dx*(i - gc - 0.5) - 0.5*cavity_size for i in 1:sz[1]]
 y_coords = [dx*(j - gc - 0.5) - 0.5*cavity_size for j in 1:sz[2]]
 
-M, normsq = prepare_M(P)
+T2, T3 = prepare_tensors(P)
 
 u = zeros(sz..., P + 1)
 v = zeros(sz..., P + 1)
@@ -43,15 +43,13 @@ println("total steps = $max_step")
 println("max A diag = $max_A_diag")
 println("P = $P")
 println()
-# println("non-zero M entries")
-# show_M(M)
 
 apply_U_bc!(u, v, lid_u_mean, lid_u_sd, P, sz, gc)
 for step = 1:max_step
     rms_divU = time_integral!(
         uold, vold, u, v, divU, lid_u_mean, lid_u_sd,
         p, b,
-        M, P,
+        T2, T3, P,
         Re, dx, dt,
         sz, gc,
         max_A_diag = max_A_diag
@@ -60,7 +58,7 @@ for step = 1:max_step
 end
 println()
 
-u_var, v_var = get_U_var(u, v, normsq, sz, gc)
+u_var, v_var = get_U_var(u, v, T2, sz, gc)
 
 mkpath("data")
 open("data/result.csv", "w") do f
