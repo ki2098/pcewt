@@ -1,0 +1,15 @@
+{
+    "domain":{
+        "x range":[-5, 19],
+        "y range":[-7.5, 7.5],
+        "divisions":[1200, 750]
+    },
+    "turbines":[
+        {
+            "C":13,
+            "diameter":1,
+            "thick":0.03,
+            "position":[0, 0]
+        }
+    ]
+}

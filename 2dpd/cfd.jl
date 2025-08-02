@@ -35,7 +35,7 @@ function cell_diffusionK(fK, viscosity, dx, i, j)
     return viscosity*(feK + fwK + fnK + fsK - 4*fcK)/(dx^2)
 end
 
-function pseudo_U!(uold, vold, u, v, fx, fy, T2, T3, P, viscosity, dx, dt, sz, gc)
+function pseudo_U!(uold, vold, u, v, T2, T3, P, viscosity, dx, dt, sz, gc)
     for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
         uc = uold[i, j, :]
         vc = vold[i, j, :]
@@ -44,8 +44,8 @@ function pseudo_U!(uold, vold, u, v, fx, fy, T2, T3, P, viscosity, dx, dt, sz, g
             uK_diffusion = cell_diffusionK((@view uold[:, :, K]), viscosity, dx, i, j)
             vK_convection = cell_convectionK(uc, vc, vold, T2, T3, K, P, dx, i, j)
             vK_diffusion = cell_diffusionK((@view vold[:, :, K]), viscosity, dx, i, j)
-            u[i, j, K] = uc[K] + dt*(- uK_convection + uK_diffusion - fx[i, j, k])
-            v[i, j, K] = vc[K] + dt*(- vK_convection + vK_diffusion - fy[i, j, k])
+            u[i, j, K] = uc[K] + dt*(- uK_convection + uK_diffusion)
+            v[i, j, K] = vc[K] + dt*(- vK_convection + vK_diffusion)
         end
     end
 end
