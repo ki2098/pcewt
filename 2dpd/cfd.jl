@@ -1,14 +1,16 @@
+include("pdmodel.jl")
+
 function utopia_convection(fww, fw, fc, fe, fee, u, dx)
     return (u*(- fee + 8*fe - 8*fw + fww) + abs(u)*(fee - 4*fe + 6*fc - 4*fw + fww))/(12*dx)
 end
 
 function cell_convectionK(uc, vc, f, T2, T3, K, P, dx, i, j)
     convection = 0.0
-    for I = 1:P + 1, J = 1:P + 1
-        m = T3[I, J, K]/T2[K, K]
-        ucI = uc[I]
-        vcI = vc[I]
+    for J = 1:P + 1, I = 1:P + 1
         fJ = @view f[:, :, J]
+        MIJK = T3[I, J, K]/T2[K, K]
+        ucI  = uc[I]
+        vcI  = vc[I]
         fcJ  = fJ[i, j]
         feJ  = fJ[i + 1, j]
         feeJ = fJ[i + 2, j]
@@ -21,7 +23,7 @@ function cell_convectionK(uc, vc, f, T2, T3, K, P, dx, i, j)
         convection += (
             utopia_convection(fwwJ, fwJ, fcJ, feJ, feeJ, ucI, dx) 
         +   utopia_convection(fssJ, fsJ, fcJ, fnJ, fnnJ, vcI, dx)
-        )*m
+        )*MIJK
     end
     return convection
 end
@@ -35,17 +37,20 @@ function cell_diffusionK(fK, viscosity, dx, i, j)
     return viscosity*(feK + fwK + fnK + fsK - 4*fcK)/(dx^2)
 end
 
-function pseudo_U!(uold, vold, u, v, T2, T3, P, viscosity, dx, dt, sz, gc)
-    for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
+function pseudo_U!(uold, vold, u, v, Umag, dfunc, T2, T3, P, viscosity, dx, dt, sz, gc)
+    for j = gc + 1:sz[2] - gc, i = gc + 1:sz[1] - gc
         uc = uold[i, j, :]
         vc = vold[i, j, :]
+        Umagc = Umag[i, j, :]
+        dfuncc = dfunc[i, j]
         for K = 1:P + 1
+            fxc, fyc = cell_PD_forceK(uc, vc, Umagc, dfuncc, T2, T3, K, P)
             uK_convection = cell_convectionK(uc, vc, uold, T2, T3, K, P, dx, i, j)
             uK_diffusion = cell_diffusionK((@view uold[:, :, K]), viscosity, dx, i, j)
             vK_convection = cell_convectionK(uc, vc, vold, T2, T3, K, P, dx, i, j)
             vK_diffusion = cell_diffusionK((@view vold[:, :, K]), viscosity, dx, i, j)
-            u[i, j, K] = uc[K] + dt*(- uK_convection + uK_diffusion)
-            v[i, j, K] = vc[K] + dt*(- vK_convection + vK_diffusion)
+            u[i, j, K] = uc[K] + dt*(- uK_convection + uK_diffusion - fxc)
+            v[i, j, K] = vc[K] + dt*(- vK_convection + vK_diffusion - fyc)
         end
     end
 end
@@ -58,12 +63,12 @@ function cell_div_UK(uK, vK, dx, i, j)
     return (ueK - uwK + vnK - vsK)/(2*dx)
 end
 
-function pressure_eq_b!(u, v, b, P, dx, dt, scale, sz, gc)
+function pressure_eq_b!(u, v, b, P, dx, dt, max_diagA, sz, gc)
     for K = 1:P + 1
         uK = @view u[:, :, K]
         vK = @view v[:, :, K]
-        for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
-            b[i, j, K] = cell_div_UK(uK, vK, dx, i, j)/(dt*scale)
+        for j = gc + 1:sz[2] - gc, i = gc + 1:sz[1] - gc
+            b[i, j, K] = cell_div_UK(uK, vK, dx, i, j)/(dt*max_diagA)
         end
     end
 end
@@ -78,22 +83,20 @@ end
 
 function update_U_by_grad_p!(u, v, p, P, dx, dt, sz, gc)
     for K = 1:P + 1
-        uK = @view u[:, :, K]
-        vK = @view v[:, :, K]
         pK = @view p[:, :, K]
-        for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
+        for j = gc + 1:sz[2] - gc, i = gc + 1:sz[1] - gc
             dpKdx, dpKdy = cell_grad_pK(pK, dx, i, j)
-            uK[i, j] -= dt*dpKdx
-            vK[i, j] -= dt*dpKdy
+            u[i, j, K] -= dt*dpKdx
+            v[i, j, K] -= dt*dpKdy
         end
     end
 end
 
-function div_UK!(u, v, divU, dx, sz, gc)
+function div_UK!(u, v, divU, dx, P, sz, gc)
     for K = 1:P + 1
         uK = @view u[:, :, K]
         vK = @view v[:, :, K]
-        for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
+        for j = gc + 1:sz[2] - gc, i = gc + 1:sz[1] - gc
             divU[i, j, K] = cell_div_UK(uK, vK, dx, i, j)
         end
     end

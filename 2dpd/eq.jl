@@ -43,13 +43,13 @@ function prepare_pressure_eq_A(dx, sz, gc)
         A[idc, idn] = - 1
     end
 
-    # right outer layer, pc - pw = 0
+    # right outer layer, pc + pw = 0
     for j = gc + 1:sz[2] - gc
         i = sz[1] - gc + 1
         idc = map_id[i, j]
         idw = map_id[i - 1, j]
         A[idc, idc] = 1
-        A[idc, idw] = - 1
+        A[idc, idw] = 1
     end
 
     #left outer layer, pc - pe = 0
@@ -84,3 +84,5 @@ function solve_pressure_eq!(p, b, P)
         p[:, :, K] .= reshape(solutionK.u, size(bK))
     end
 end
+
+#### CHECKED ####
