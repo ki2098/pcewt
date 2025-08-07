@@ -108,6 +108,10 @@ function init(setup_filename)
 
     prepare_dfunc!(setup_json["wind turbines"], x, y, dx, dfunc, sz)
 
+    output_path = setup_json["output"]
+
+    println("output to $output_path")
+
     PD_Umag_init_guess!(u, v, Umag, sz)
     solve_PD_Umag!(u, v, Umag, dfunc, T3, P, sz, gc)
 
@@ -119,7 +123,7 @@ function init(setup_filename)
         x, y, dx, sz, gc,
         max_time, max_step, dt,
         P, T2, T3
-    )
+    ), output_path
 end
 
 function time_integral!(s::Solver)
@@ -151,15 +155,22 @@ function time_integral!(s::Solver)
         s.dx, s.dt, s.T2, s.T3, s.P,
         s.sz, s.gc
     )
-    solve_PD_Umag!(
-        s.u, s.v, s.Umag, s.dfunc,
-        s.T3, s.P,
-        s.sz, s.gc
-    )
     rms_divU = div_UK!(
         s.u, s.v, s.divU,
         s.dx, s.P, s.sz, s.gc
     )
+    if rms_divU > 1
+        # error("cfd solver not converging, |div(U)| = $rms_divU")
+    end
+    try
+        solve_PD_Umag!(
+            s.u, s.v, s.Umag, s.dfunc,
+            s.T3, s.P,
+            s.sz, s.gc
+        )
+    catch pd_solver_error
+        rethrow(pd_solver_error)
+    end
     return rms_divU
 end
 
@@ -173,7 +184,7 @@ end
 
 function write_csv(filename::String, s::Solver)
     open(filename, "w") do f
-        write(f, "x,y,z,E[u],Var[u],E[v],Var[v],E[p],Var[p],|div(U)|\n")
+        write(f, "x,y,z,E[u],Var[u],E[v],Var[v],E[p],Var[p],|div(U)|,|Umag|\n")
         gc = s.gc
         sz = s.sz
         x = s.x
@@ -184,11 +195,12 @@ function write_csv(filename::String, s::Solver)
         divU = s.divU
         T2 = s.T2
         P = s.P
+        Umag = s.Umag
         for j = gc+1:sz[2]-gc, i = gc+1:sz[1]-gc
             Eu, Vu = get_statistics(u[i, j, :], T2, P)
             Ev, Vv = get_statistics(v[i, j, :], T2, P)
             Ep, Vp = get_statistics(p[i, j, :], T2, P)
-            write(f, "$(x[i]),$(y[j]),0,$Eu,$Vu,$Ev,$Vv,$Ep,$Vp,$(norm(divU[i,j,:]))\n")
+            write(f, "$(x[i]),$(y[j]),0,$Eu,$Vu,$Ev,$Vv,$Ep,$Vp,$(norm(divU[i,j,:])),$(norm(Umag[i,j,:]))\n")
         end
     end
 end

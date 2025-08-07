@@ -84,5 +84,3 @@ function solve_pressure_eq!(p, b, P)
         p[:, :, K] .= reshape(solutionK.u, size(bK))
     end
 end
-
-#### CHECKED ####

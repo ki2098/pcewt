@@ -34,12 +34,16 @@ function j!(J, a)
     end
 end
 
-a0 = sqrt.(b.^2 .+ c.^2)
+function nls(b, c)
+    a0 = sqrt.(b.^2 .+ c.^2)
+    sol = nlsolve(f!, j!, a0, ftol=1e-6)
 
-sol = nlsolve(f!, j!, a0, ftol=1e-6)
-
-if NLsolve.converged(sol)
-    sol.zero
-else
-    error("solver for U coefficients not converged\nfinal guess = $(sol.zero)\n")
+    if NLsolve.converged(sol)
+        return sol.zero
+    else
+        error("solver for U coefficients not converged\nfinal guess = $(sol.zero)\n")
+    end
 end
+
+x = nls(b,c)
+

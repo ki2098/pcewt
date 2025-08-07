@@ -31,7 +31,7 @@ function PD_Umag_init_guess!(u, v, Umag, sz)
     end
 end
 
-function solve_cell_PD_Umag(uc, vc, Umagc, T3, P)
+function solve_cell_PD_Umag(uc, vc, Umagc_guess, T3, P)
     function F!(r, x)
         for K = 1:P + 1
             lsum, rsum = 0.0, 0.0
@@ -54,11 +54,11 @@ function solve_cell_PD_Umag(uc, vc, Umagc, T3, P)
         end
     end
 
-    sol = nlsolve(F!, J!, Umagc, ftol=(P + 1)*1e-6)
+    sol = nlsolve(F!, J!, Umagc_guess, ftol=(P + 1)*1e-6)
     if converged(sol)
         return sol.zero
     else
-        error("solver for PD coefficients failed to converge\nfinal guess = $(sol.zero)\n")
+        error("solver for PD coefficients failed to converg. Final guess = $(sol.zero)")
     end
 end
 
@@ -67,7 +67,7 @@ function solve_PD_Umag!(u, v, Umag, dfunc, T3, P, sz, gc)
         if dfunc[i, j] >= 1e-6
             uc = u[i, j, :]
             vc = v[i, j, :]
-            Umagc_guess = cell_PD_Umag_init_guess(uc, vc)
+            Umagc_guess = Umag[i, j, :]
         
             try
                 Umagc = solve_cell_PD_Umag(uc, vc, Umagc_guess, T3, P)

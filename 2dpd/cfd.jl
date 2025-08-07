@@ -8,7 +8,6 @@ function cell_convectionK(uc, vc, f, T2, T3, K, P, dx, i, j)
     convection = 0.0
     for J = 1:P + 1, I = 1:P + 1
         fJ = @view f[:, :, J]
-        MIJK = T3[I, J, K]/T2[K, K]
         ucI  = uc[I]
         vcI  = vc[I]
         fcJ  = fJ[i, j]
@@ -23,9 +22,9 @@ function cell_convectionK(uc, vc, f, T2, T3, K, P, dx, i, j)
         convection += (
             utopia_convection(fwwJ, fwJ, fcJ, feJ, feeJ, ucI, dx) 
         +   utopia_convection(fssJ, fsJ, fcJ, fnJ, fnnJ, vcI, dx)
-        )*MIJK
+        )*T3[I, J, K]
     end
-    return convection
+    return convection/T2[K, K]
 end
 
 function cell_diffusionK(fK, viscosity, dx, i, j)
