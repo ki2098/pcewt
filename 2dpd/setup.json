@@ -1,0 +1,30 @@
+{
+    "domain":{
+        "x range":[-5, 19],
+        "y range":[-7.5, 7.5],
+        "divisions":[480, 300]
+    },
+    "inlet":{
+        "E[u]":1,
+        "SD[u]":0.1
+    },
+    "time":{
+        "end":6.5,
+        "dt":1e-3
+    },
+    "cfd":{
+        "Re":1e5
+    },
+    "pce":{
+        "P":5
+    },
+    "wind turbines":{
+        "C":13,
+        "diameter":1,
+        "thick":0.03,
+        "coordinates":[
+            [0, 0]
+        ]
+    },
+    "output":"result.5.csv"
+}

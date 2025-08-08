@@ -25,10 +25,9 @@ function cell_convectionK(uc, uE, uW, vc, vN, vS, f, T2, T3, K, P, dx, dy, i, j)
         fnnJ = fJ[i, j + 2]
         fsJ  = fJ[i, j - 1]
         fssJ = fJ[i, j - 2]
-        convection += (
-            utopia_convection(fwwJ, fwJ, fcJ, feJ, feeJ, uWI, uEI, ucI, dx)
-        +   utopia_convection(fssJ, fsJ, fcJ, fnJ, fnnJ, vSI, vNI, vcI, dy)
-        )*T3[I, J, K]
+        uIdfJdx = utopia_convection(fwwJ, fwJ, fcJ, feJ, feeJ, uWI, uEI, ucI, dx)
+        vIdfJdy = utopia_convection(fssJ, fsJ, fcJ, fnJ, fnnJ, vSI, vNI, vcI, dy)
+        convection += (uIdfJdx + vIdfJdy)*T3[I, J, K]
     end
     return convection/T2[K, K]
 end
@@ -39,10 +38,9 @@ function cell_diffusionK(fK, viscosity, dx, dy, i, j)
     fwK = fK[i - 1, j]
     fnK = fK[i, j + 1]
     fsK = fK[i, j - 1]
-    return viscosity*(
-        (feK - 2*fcK + fwK)/(dx^2)
-    +   (fnK - 2*fcK + fsK)/(dy^2)
-    )
+    d2fKdx2 = (feK - 2*fcK + fwK)/(dx^2)
+    d2fKdy2 = (fnK - 2*fcK + fsK)/(dy^2)
+    return viscosity*(d2fKdx2 + d2fKdy2)
 end
 
 function pseudo_U!(ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, viscosity, dx, dy, dt, sz, gc)
@@ -56,21 +54,11 @@ function pseudo_U!(ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, viscosity, dx, 
         Umagc = Umag[i, j, :]
         dfuncc = dfunc[i, j]
         for K = 1:P + 1
-            fxc, fyc = cell_PD_forceK(
-                uc, vc, Umagc, dfuncc, T2, T3, K, P
-            )
-            uK_convection = cell_convectionK(
-                uc, uE, uW, vc, vN, vS, ut, T2, T3, K, P, dx, dy, i, j
-            )
-            uK_diffusion = cell_diffusionK(
-                (@view ut[:, :, K]), viscosity, dx, dy, i, j
-            )
-            vK_convection = cell_convectionK(
-                uc, uE, uW, vc, vN, vS, vt, T2, T3, K, P, dx, dy, i, j
-            )
-            vK_diffusion = cell_diffusionK(
-                (@view vt[:, :, K]), viscosity, dx, dy, i, j
-            )
+            fxc, fyc = cell_PD_forceK(uc, vc, Umagc, dfuncc, T2, T3, K, P)
+            uK_convection = cell_convectionK(uc, uE, uW, vc, vN, vS, ut, T2, T3, K, P, dx, dy, i, j)
+            uK_diffusion = cell_diffusionK((@view ut[:, :, K]), viscosity, dx, dy, i, j)
+            vK_convection = cell_convectionK(uc, uE, uW, vc, vN, vS, vt, T2, T3, K, P, dx, dy, i, j)
+            vK_diffusion = cell_diffusionK((@view vt[:, :, K]), viscosity, dx, dy, i, j)
             u[i, j, K] = uc[K] + dt*(- uK_convection + uK_diffusion - fxc)
             v[i, j, K] = vc[K] + dt*(- vK_convection + vK_diffusion - fyc)
         end
