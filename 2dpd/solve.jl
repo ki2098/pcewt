@@ -1,11 +1,13 @@
 module PceWt2d
 
+using CSV
+using DataFrames
+
 include("cfd.jl")
 include("bc.jl")
 include("eq.jl")
 include("pce.jl")
 include("pd.jl")
-using CSV
 
 struct Solver
     u
@@ -161,7 +163,32 @@ function write_csv(filename::String, s::Solver)
     p = s.p
     P = s.P
     sz = s.sz
+    x = s.x
+    y = s.y
+    x_coord = zeros(sz)
+    y_coord = zeros(sz)
+    z_coord = zeros(sz)
+    for j = 1:sz[2], i = 1:sz[1]
+        x_coord[i, j] = x[i]
+        y_coord[i, j] = y[j]
+    end
     
+    df = DataFrame(x = vec(x_coord), y = vec(y_coord), z = vec(z_coord))
+    u_names = [Symbol("u$(K-1)") for K = 1:P + 1]
+    v_names = [Symbol("v$(K-1)") for K = 1:P + 1]
+    p_names = [Symbol("p$(K-1)") for K = 1:P + 1]
+
+    for K = 1:P + 1
+        df[!, u_names[K]] = vec(@view u[:, :, K])
+    end
+    for K = 1:P + 1
+        df[!, v_names[K]] = vec(@view v[:, :, K])
+    end
+    for K = 1:P + 1
+        df[!, p_names[K]] = vec(@view p[:, :, K])
+    end
+
+    CSV.write(filename, df)
 end
 
 end
