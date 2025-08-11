@@ -163,7 +163,7 @@ function time_integral!(s::Solver)
         s.dx, s.P, s.sz, s.gc
     )
     if rms_divU > 1
-        # error("cfd solver not converging, |div(U)| = $rms_divU")
+        error("cfd solver not converging, |div(U)| = $rms_divU")
     end
     try
         solve_PD_Umag!(

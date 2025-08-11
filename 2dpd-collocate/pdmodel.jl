@@ -11,13 +11,12 @@ end
 function cell_PD_forceK(uc, vc, Umagc, dfuncc, T2, T3, K, P)
     fxc, fyc = 0.0, 0.0
     for J = 1:P + 1, I = 1:P + 1
-        ef = Umagc[J]*T3[I, J, K]
+        ef = Umagc[J]*T3[I, J, K]/T2[K, K]
         fxc += uc[I]*ef
         fyc += vc[I]*ef
     end
-    co = dfuncc/T2[K, K]
-    fxc *= co
-    fyc *= co
+    fxc *= dfuncc
+    fyc *= dfuncc
     return fxc, fyc
 end
 
