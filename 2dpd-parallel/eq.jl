@@ -4,14 +4,17 @@ using LinearAlgebra
 
 linsolve = nothing
 
-function prepare_pressure_eq_A(dx, sz, gc)
+function prepare_pressure_eq_A(dx, dy, sz, gc)
     cell_count = sz[1]*sz[2]
     A = spdiagm(0 => ones(cell_count))
     map_id = LinearIndices((sz[1], sz[2]))
 
     for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
-        Ac = - 4/(dx^2)
-        Ae = Aw = An = As = 1/(dx^2)
+        # Ac = - 4/(dx^2)
+        # Ae = Aw = An = As = 1/(dx^2)
+        Ae = Aw = 1/(dx^2)
+        An = As = 1/(dy^2)
+        Ac = - (Ae + Aw + An + As)
 
         idc = map_id[i ,j]
         ide = map_id[i + 1, j]
@@ -43,13 +46,13 @@ function prepare_pressure_eq_A(dx, sz, gc)
         A[idc, idn] = - 1
     end
 
-    # right outer layer, pc - pw = 0
+    # right outer layer, pc + pw = 0
     for j = gc + 1:sz[2] - gc
         i = sz[1] - gc + 1
         idc = map_id[i, j]
         idw = map_id[i - 1, j]
         A[idc, idc] = 1
-        A[idc, idw] = - 1
+        A[idc, idw] = 1
     end
 
     #left outer layer, pc - pe = 0
@@ -65,15 +68,37 @@ function prepare_pressure_eq_A(dx, sz, gc)
 
     A ./= max_diag
 
-    return A, max_diag
+    Pl = Diagonal(A)
+
+    return A, Pl, max_diag
 end
 
-function init_pressure_eq(P, dx, sz, gc)
-    A, max_diag = prepare_pressure_eq_A(dx, sz, gc)
+# function init_pressure_eq(P, dx, dy, sz, gc)
+#     A, Pl, max_diag = prepare_pressure_eq_A(dx, dy, sz, gc)
+#     b = zeros(sz..., P + 1)
+#     return A, Pl, b, max_diag
+# end
+
+# function solve_pressure_eq!(A, p, b, P, sz; Pl=Diagonal(A))
+#     for K = 1:P + 1
+#         # bK = @view b[:, :, K]
+#         # linsolve.b = vec(bK)
+#         # solutionK = LinearSolve.solve!(linsolve)
+#         # p[:, :, K] .= reshape(solutionK.u, size(bK))
+#         prob = LinearSolve.LinearProblem(A, vec(b[:, :, K]), u0=vec(p[:, :, K]))
+#         # println("x")
+#         solution = LinearSolve.solve(prob, LinearSolve.KrylovJL_BICGSTAB(), abstol=1e-6*prod(sz), Pl=Pl)
+#         # println("y")
+#         p[:, :, K] .= reshape(solution.u, sz)
+#     end
+# end
+
+function init_pressure_eq(P, dx, dy, sz, gc)
+    A, Pl, max_diag = prepare_pressure_eq_A(dx, dy, sz, gc)
     b = zeros(sz..., P + 1)
     prob = LinearSolve.LinearProblem(A, vec(@view b[:, :, 1]))
     global linsolve = LinearSolve.init(prob)
-    return A, b, max_diag
+    return A, Pl, b, max_diag
 end
 
 function solve_pressure_eq!(p, b, P)

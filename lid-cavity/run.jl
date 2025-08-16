@@ -30,7 +30,7 @@ p = zeros(sz..., P + 1)
 
 A, b, max_A_diag = init_pressure_eq(P, dx, sz, gc)
 
-T = 20
+T = 1
 dt = 1e-3
 max_step::Int = T/dt
 

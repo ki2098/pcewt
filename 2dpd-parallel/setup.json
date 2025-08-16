@@ -9,7 +9,7 @@
         "SD[u]":0.1
     },
     "time":{
-        "end":100,
+        "end":50,
         "dt":1e-3
     },
     "cfd":{
@@ -26,5 +26,5 @@
             [0, 0]
         ]
     },
-    "output":"result.5.csv"
+    "output":"result.csv"
 }
