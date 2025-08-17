@@ -19,6 +19,7 @@ struct Solver
     uin_sd
     Re
     A
+    Pl
     b
     max_diagA
     p
@@ -40,6 +41,7 @@ function init(setup_filename)
     gc = 2
     setup_json = JSON.parsefile(setup_filename)
     # setup_json = JSON.parsefile("setup.json")
+    BLAS.set_num_threads(10)
 
     domain_json = setup_json["domain"]
     xmin = domain_json["x range"][1]
@@ -105,6 +107,7 @@ function init(setup_filename)
     u[:, :, 2] .= uin_sd
 
     A, b, max_diagA = init_pressure_eq(P, dx, sz, gc)
+    Pl = Diagonal(A)
 
     println("EQ INFO")
     println("\tmax diag(A) = $max_diagA")
@@ -121,7 +124,7 @@ function init(setup_filename)
     return Solver(
         u, v, ut, vt, Umag, divU,
         uin_mean, uin_sd, Re,
-        A, b, max_diagA, p,
+        A, Pl, b, max_diagA, p,
         dfunc,
         x, y, dx, sz, gc,
         max_time, max_step, dt,
@@ -144,8 +147,11 @@ function time_integral!(s::Solver)
         s.P, s.dx, s.dt,
         s.max_diagA, s.sz, s.gc
     )
+    # solve_pressure_eq!(
+    #     s.p, s.b, s.P
+    # )
     solve_pressure_eq!(
-        s.p, s.b, s.P
+        s.A, s.p, s.b, s.P, s.sz, s.Pl
     )
     update_U_by_grad_p!(
         s.u, s.v, s.p,

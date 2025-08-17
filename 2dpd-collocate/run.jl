@@ -8,14 +8,14 @@ cd(@__DIR__)
 println("now working in $(pwd())")
 
 s, f = PceCfd.init("setup.json")
-flush(stdout)
+# flush(stdout)
 for step = 1:s.max_step
     try
         rms_divU = PceCfd.time_integral!(s)
-        if step % 1000 == 0
+        # if step % 1000 == 0
             println("step = $step, rms divU = $(round(rms_divU, digits=10))")
-            flush(stdout)
-        end
+            # flush(stdout)
+        # end
     catch e
         println("Error occured: $(e)")
         break
