@@ -5,11 +5,11 @@
         "divisions":[480, 300]
     },
     "inlet":{
-        "u mean":100,
+        "u mean":1,
         "u sd":0.1
     },
     "time":{
-        "end":1,
+        "end":100,
         "dt":1e-3
     },
     "cfd":{
