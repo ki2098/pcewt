@@ -2,6 +2,7 @@ using NLsolve
 using LinearAlgebra
 using JSON
 using Intervals
+using Base.Threads
 
 function intersec_len(interv1, interv2)
     intersec = intersect(interv1, interv2)
@@ -62,21 +63,22 @@ function solve_cell_PD_Umag(uc, vc, Umagc_guess, T3, P)
 end
 
 function solve_PD_Umag!(u, v, Umag, dfunc, T3, P, sz, gc)
-    for j = gc + 1:sz[2] - gc, i = gc + 1:sz[1] - gc
-        if dfunc[i, j] >= 1e-6
-            uc = u[i, j, :]
-            vc = v[i, j, :]
-            Umagc_guess = Umag[i, j, :]
-        
-            try
-                Umagc = solve_cell_PD_Umag(uc, vc, Umagc_guess, T3, P)
-                Umag[i, j, :] = Umagc
-            catch pd_solver_error
-                println("\npd solver error raised at cell ($i $j)")
-                rethrow(pd_solver_error)
+    @threads for j = gc + 1:sz[2] - gc
+        for i = gc + 1:sz[1] - gc
+            if dfunc[i, j] >= 1e-6
+                uc = u[i, j, :]
+                vc = v[i, j, :]
+                Umagc_guess = Umag[i, j, :]
+                try
+                    Umagc = solve_cell_PD_Umag(uc, vc, Umagc_guess, T3, P)
+                    Umag[i, j, :] = Umagc
+                catch pd_solver_error
+                    println("\npd solver error raised at cell ($i $j)")
+                    rethrow(pd_solver_error)
+                end
+            else
+                Umag[i, j, :] .= 0
             end
-        else
-            Umag[i, j, :] .= 0
         end
     end
 end

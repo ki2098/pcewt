@@ -1,17 +1,19 @@
+using Base.Threads
+
 function left_side_dfdx(fww, fw, fc, dx)
     return (3*fc - 4*fw + fww)/(2*dx)
 end
 
 function apply_Ubc!(u, v, ut, vt, uin_mean, uin_sd, dx, dy, dt, T2, T3, P, sz, gc)
     uin = [uin_mean, uin_sd, zeros(P + 1 - 2)...]
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = 1:gc
             u[i, j, :] = uin
             v[i, j, :] .= 0.0
         end
     end
 
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = sz[1] - gc + 1:sz[1]
             for K = 1:P + 1
                 convection_uK = 0.0
@@ -36,7 +38,7 @@ function apply_Ubc!(u, v, ut, vt, uin_mean, uin_sd, dx, dy, dt, T2, T3, P, sz, g
         end
     end
 
-    for i = gc + 1:sz[1] - gc
+    @threads for i = gc + 1:sz[1] - gc
         ubc = u[i, gc + 1, :]
         for j = 1:gc
             j_mirror = 2*gc + 1 - j
@@ -45,7 +47,7 @@ function apply_Ubc!(u, v, ut, vt, uin_mean, uin_sd, dx, dy, dt, T2, T3, P, sz, g
         end
     end
 
-    for i = gc + 1:sz[1] - gc
+    @threads for i = gc + 1:sz[1] - gc
         ubc = u[i, sz[2] - gc, :]
         for j = sz[2] - gc + 1:sz[2]
             j_mirror = 2*(sz[2] - gc) + 1 - j
@@ -55,17 +57,26 @@ function apply_Ubc!(u, v, ut, vt, uin_mean, uin_sd, dx, dy, dt, T2, T3, P, sz, g
     end
 end
 
-function apply_UUbc!(uu, vv, sz, gc)
+function apply_UUbc!(uu, vv, uin_mean, uin_sd, P, sz, gc)
     uin = [uin_mean, uin_sd, zeros(P + 1 - 2)...]
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         uu[gc, j, :] = uin
     end
 
-    for i = gc + 1:sz[1] - gc
+    @threads for i = gc + 1:sz[1] - gc
+        vv[i, gc, :] .= 0
         vv[i, sz[2] - gc, :] .= 0
     end
+end
 
-    for i = gc + 1:sz[1] - gc
-        vv[i, gc, :] .= 0
+function apply_pbc!(p, sz, gc)
+    @threads for j = gc + 1:sz[2] - gc
+        p[gc, j, :] = p[gc + 1, j, :]
+        p[sz[1] - gc + 1, j, :] = p[sz[1] - gc, j, :]
+    end 
+
+    @threads for i = gc + 1:sz[1] - gc
+        p[i, gc, :] = p[i, gc + 1, :]
+        p[i, sz[2] - gc + 1, :] = p[i, sz[2] - gc, :]
     end
 end

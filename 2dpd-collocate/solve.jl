@@ -147,12 +147,12 @@ function time_integral!(s::Solver)
         s.P, s.dx, s.dt,
         s.max_diagA, s.sz, s.gc
     )
-    solve_pressure_eq!(
-        s.p, s.b, s.P
-    )
     # solve_pressure_eq!(
-    #     s.A, s.p, s.b, s.P, s.sz, s.Pl
+    #     s.p, s.b, s.P
     # )
+    solve_pressure_eq!(
+        s.A, s.p, s.b, s.P, s.sz, s.Pl
+    )
     update_U_by_grad_p!(
         s.u, s.v, s.p,
         s.P, s.dx, s.dt,

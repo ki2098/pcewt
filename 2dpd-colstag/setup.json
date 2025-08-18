@@ -5,8 +5,8 @@
         "divisions":[480, 300]
     },
     "inlet":{
-        "E[u]":1,
-        "SD[u]":0.1
+        "u mean":100,
+        "u sd":0.1
     },
     "time":{
         "end":1,

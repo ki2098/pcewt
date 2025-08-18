@@ -10,38 +10,38 @@ function prepare_pressure_eq_A(dx, sz, gc)
     map_id = LinearIndices((sz[1], sz[2]))
 
     for i = gc + 1:sz[1] - gc, j = gc + 1:sz[2] - gc
-        # Ac = - 4/(dx^2)
-        # Ae = Aw = An = As = 1/(dx^2)
-        Ac = 0
+        Ac = - 4/(dx^2)
+        Ae = Aw = An = As = 1/(dx^2)
+        # Ac = 0
 
-        if i == gc + 1
-            Aw = 0
-        else
-            Aw = 1/(dx^2)
-            Ac -= Aw
-        end
+        # if i == gc + 1
+        #     Aw = 0
+        # else
+        #     Aw = 1/(dx^2)
+        #     Ac -= Aw
+        # end
 
-        if i == sz[1] - gc
-            Ae = 0
-            Ac -= 2/(dx^2)
-        else
-            Ae = 1/(dx^2)
-            Ac -= Ae
-        end
+        # if i == sz[1] - gc
+        #     Ae = 0
+        #     Ac -= 2/(dx^2)
+        # else
+        #     Ae = 1/(dx^2)
+        #     Ac -= Ae
+        # end
 
-        if j == gc + 1
-            As = 0
-        else
-            As = 1/(dx^2)
-            Ac -= As
-        end
+        # if j == gc + 1
+        #     As = 0
+        # else
+        #     As = 1/(dx^2)
+        #     Ac -= As
+        # end
 
-        if j == sz[2] - gc
-            An = 0
-        else
-            An = 1/(dx^2)
-            Ac -= An
-        end
+        # if j == sz[2] - gc
+        #     An = 0
+        # else
+        #     An = 1/(dx^2)
+        #     Ac -= An
+        # end
 
         idc = map_id[i ,j]
         ide = map_id[i + 1, j]
@@ -79,7 +79,7 @@ function prepare_pressure_eq_A(dx, sz, gc)
         idc = map_id[i, j]
         idw = map_id[i - 1, j]
         A[idc, idc] = 1
-        A[idc, idw] = 1
+        A[idc, idw] = - 1
     end
 
     #left outer layer, pc - pe = 0

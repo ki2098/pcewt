@@ -1,4 +1,5 @@
 using LinearAlgebra
+using Base.Threads
 
 include("pd.jl")
 
@@ -62,7 +63,7 @@ function cell_diffusionK(fK, μ, dx, dy, i, j)
 end
 
 function pseudo_U!(ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, μ, dx, dy, dt, sz, gc)
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = gc + 1:sz[1] - gc
             uE = uu[i    , j, :]
             uW = uu[i - 1, j, :]
@@ -95,7 +96,7 @@ function interpol_UU!(u, v, uu, vv, sz, gc)
         @inlet  no
         @outlet yes
     =#
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = gc + 1:sz[1] - gc
             uu[i, j, :] = 0.5*(u[i, j, :] + u[i + 1, j, :])
         end
@@ -108,7 +109,7 @@ function interpol_UU!(u, v, uu, vv, sz, gc)
         @inlet  no
         @outlet no
     =#
-    for j = gc + 1:sz[2] - gc - 1
+    @threads for j = gc + 1:sz[2] - gc - 1
         for i = gc + 1:sz[1] - gc
             vv[i, j, :] = 0.5*(v[i, j, :] + v[i, j + 1, :])
         end
@@ -116,7 +117,7 @@ function interpol_UU!(u, v, uu, vv, sz, gc)
 end
 
 function pressure_eq_b!(uu, vv, b, P, dx, dy, dt, max_diag, sz, gc)
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = gc + 1:sz[1] - gc
             dudx = (uu[i, j, :] - uu[i - 1, j, :])/dx
             dvdy = (vv[i, j, :] - vv[i, j - 1, :])/dy
@@ -126,7 +127,7 @@ function pressure_eq_b!(uu, vv, b, P, dx, dy, dt, max_diag, sz, gc)
 end
 
 function update_U_by_gradp!(u, v, uu, vv, p, P, dx, dy, dt, sz, gc)
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = gc + 1:sz[1] - gc
             dpdx = (p[i + 1, j, :] - p[i - 1, j, :])/(2*dx)
             dpdy = (p[i, j + 1, :] - p[i, j - 1, :])/(2*dy)
@@ -142,7 +143,7 @@ function update_U_by_gradp!(u, v, uu, vv, p, P, dx, dy, dt, sz, gc)
         @inlet  no
         @outlet yes
     =#
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = gc + 1:sz[1] - gc
             dpdx = (p[i + 1, j, :] - p[i, j, :])/dx
             uu[i, j, :] -= dt*dpdx
@@ -156,7 +157,7 @@ function update_U_by_gradp!(u, v, uu, vv, p, P, dx, dy, dt, sz, gc)
         @inlet  no
         @outlet no
     =#
-    for j = gc + 1:sz[2] - gc - 1
+    @threads for j = gc + 1:sz[2] - gc - 1
         for i = gc + 1:sz[1] - gc
             dpdy = (p[i, j + 1, :] - p[i, j, :])/dy
             vv[i, j, :] -= dt*dpdy
@@ -165,7 +166,7 @@ function update_U_by_gradp!(u, v, uu, vv, p, P, dx, dy, dt, sz, gc)
 end
 
 function div_UK!(uu, vv, divU, dx, dy, P, sz, gc)
-    for j = gc + 1:sz[2] - gc
+    @threads for j = gc + 1:sz[2] - gc
         for i = gc + 1:sz[1] - gc
             dudx = (uu[i, j, :] - uu[i - 1, j, :])/dx
             dvdy = (vv[i, j, :] - vv[i, j - 1, :])/dy
