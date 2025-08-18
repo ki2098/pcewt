@@ -1,6 +1,8 @@
+using LinearAlgebra
+
 linear_map = nothing
 
-function prepare_pressure_eq_A(dx, dy, sz)
+function prepare_pressure_eq_A(dx, dy, sz, gc)
     cell_count = prod(sz)
     A = zeros(cell_count, 5)
     global linear_map = LinearIndices(Tuple(sz))
@@ -60,11 +62,58 @@ function prepare_pressure_eq_A(dx, dy, sz)
 end
 
 function init_pressure_eq(P, dx, dy, sz, gc)
-    A, max_diag = prepare_pressure_eq_A(dx, dy, sz)
+    A, max_diag = prepare_pressure_eq_A(dx, dy, sz, gc)
     b = zeros(sz..., P + 1)
     return A, b, max_diag
 end
 
-function colored_sor_sweep!(A, x, b, sz, gc, color)
-    
+function cell_res(A, x, b, i, j)
+    xc = x[i, j, :]
+    xe = x[i + 1, j, :]
+    xw = x[i - 1, j, :]
+    xn = x[i, j + 1, :]
+    xs = x[i, j - 1, :]
+    id = linear_map[i, j]
+    Ac = A[id, 1]
+    Ae = A[id, 2]
+    Aw = A[id, 3]
+    An = A[id, 4]
+    As = A[id, 5]
+    r  = b[i, j, :] - (Ac*xc + Ae*xe + Aw*xw + An*xn + As*xs)
+    return r
+end
+
+function colored_sor_sweep!(A, x, b, ω, sz, gc, color)
+    for j = gc:sz[2] - gc - 1
+        for i = gc:sz[1] - gc - 1
+            if (i + j)%2 == color
+                x[i, j, :] += ω*cell_res(A, x, b, i, j)/A[linear_map[i, j], 1]
+            end
+        end
+    end
+end
+
+function eq_res!(A, x, b, r, sz, gc)
+    for j = gc:sz[2] - gc - 1
+        for i = gc:sz[1] - gc - 1
+            r[i, j, :] = cell_res(A, x, b, i, j)
+        end
+    end
+    mag = norm(r)
+    effective_cell_cnt = (sz[1] - 2*gc + 2)*(sz[2] - 2*gc + 2)
+    return mag/sqrt(effective_cell_cnt)
+end
+
+function solve_pressure_eq!(A, x, b, ω, sz, gc, tol, max_it)
+    fill!(r, 0)
+    it = 0
+    while true
+        colored_sor_sweep!(A, x, b, ω, sz, gc, 0)
+        colored_sor_sweep!(A, x, b, ω, sz, gc, 1)
+        res_mag = eq_res!(A, x, b, r, sz, gc)
+        it += 1
+        if res_mag <= tol || it >= max_it
+            return it, res_mag
+        end
+    end
 end

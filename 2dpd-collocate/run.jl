@@ -14,7 +14,7 @@ for step = 1:s.max_step
         rms_divU = PceCfd.time_integral!(s)
         # if step % 1000 == 0
             println("step = $step, rms divU = $(round(rms_divU, digits=10))")
-            # flush(stdout)
+            flush(stdout)
         # end
     catch e
         println("Error occured: $(e)")

@@ -1,3 +1,7 @@
+using LinearAlgebra
+
+include("pd.jl")
+
 function utopia_convection(fww, fw, fc, fe, fee, uW, uc, uE, dx)
     xE = uE*(fw - 27*fc + 27*fe - fee)/(24*dx)
     xW = uW*(fww - 27*fw + 27*fc - fe)/(24*dx)
@@ -46,7 +50,7 @@ function cell_convectionK(uW, uc, uE, vS, vc, vN, f, T2, T3, K, P, dx, dy, i, j)
     return convection
 end
 
-function cell_diffusionK(fK, mu, dx, dy, i, j)
+function cell_diffusionK(fK, μ, dx, dy, i, j)
     fcK = fK[i, j]
     feK = fK[i + 1, j]
     fwK = fK[i - 1, j]
@@ -54,10 +58,10 @@ function cell_diffusionK(fK, mu, dx, dy, i, j)
     fsK = fK[i, j - 1]
     d2fKdx2 = (feK - 2*fcK + fwK)/(dx^2)
     d2fKdy2 = (fnK - 2*fcK + fsK)/(dy^2)
-    return mu*(d2fKdx2 + d2fKdy2)
+    return μ*(d2fKdx2 + d2fKdy2)
 end
 
-function pseudo_U!(ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, mu, dx, dy, dt, sz, gc)
+function pseudo_U!(ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, μ, dx, dy, dt, sz, gc)
     for j = gc + 1:sz[2] - gc
         for i = gc + 1:sz[1] - gc
             uE = uu[i    , j, :]
@@ -71,11 +75,11 @@ function pseudo_U!(ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, mu, dx, dy, dt,
             for K = 1:P + 1
                 uK = @view ut[:, :, K]
                 vK = @view vt[:, :, K]
-                fxc = fyc = 0.0
+                fxc, fyc = cell_PD_forceK(uc, vc, Umagc, dfuncc, T2, T3, K, P)
                 uK_conv = cell_convectionK(uW, uc, uE, vS, vc, vN, ut, T2, T3, K, P, dx, dy, i, j)
-                uK_diff = cell_diffusionK(uK, mu, dx, dy, i, j)
+                uK_diff = cell_diffusionK(uK, μ, dx, dy, i, j)
                 vK_conv = cell_convectionK(uW, uc, uE, vS, vc, vN, vt, T2, T3, K, P, dx, dy, i, j)
-                vK_diff = cell_diffusionK(vK, mu, dx, dy, i, j)
+                vK_diff = cell_diffusionK(vK, μ, dx, dy, i, j)
                 u[i, j, K] = uc[K] + dt*(- uK_conv + uK_diff - fxc)
                 v[i, j, K] = vc[K] + dt*(- vK_conv + vK_diff - fyc)
             end
@@ -169,6 +173,6 @@ function div_UK!(uu, vv, divU, dx, dy, P, sz, gc)
         end
     end
     mag = norm(divU)
-    inner_cell_count = (sz[1] - 2*gc)*(sz[2] - 2*gc)
-    return mag/sqrt(inner_cell_count)
+    effective_cell_cnt = (sz[1] - 2*gc)*(sz[2] - 2*gc)
+    return mag/sqrt(effective_cell_cnt)
 end

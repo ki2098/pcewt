@@ -1,11 +1,11 @@
-module PceCfd
+module PceWt
 
 using CSV
 using DataFrames
 
 include("cfd.jl")
 include("eq.jl")
-include("pcem.jl")
+include("pce.jl")
 include("bc.jl")
 
 struct Solver
@@ -19,14 +19,15 @@ struct Solver
     uin_sd
     Re
     A
-    Pl
     b
-    max_diagA
+    ω
+    max_diag
     p
     dfunc
     x
     y
     dx
+    dy
     sz
     gc
     max_time
@@ -40,8 +41,6 @@ end
 function init(setup_filename)
     gc = 2
     setup_json = JSON.parsefile(setup_filename)
-    # setup_json = JSON.parsefile("setup.json")
-    BLAS.set_num_threads(10)
 
     domain_json = setup_json["domain"]
     xmin = domain_json["x range"][1]
@@ -54,14 +53,13 @@ function init(setup_filename)
     sz = (nx + 2*gc, ny + 2*gc)
     dx = (xmax - xmin)/nx
     dy = (ymax - ymin)/ny
-    @assert dx==dy "different cell size on x and y direction, dx=$dx, dy=$dy"
 
     println("DOMAIN INFO")
     println("\tgc = $gc")
     println("\tx range = [$xmin, $xmax]")
     println("\ty range = [$ymin, $ymax]")
     println("\tdivison = ($(sz[1]-2*gc) $(sz[2]-2*gc))")
-    println("\tcell size = $dx")
+    println("\tcell size = ($dx, $dy)")
 
     time_json = setup_json["time"]
     max_time = time_json["end"]
@@ -90,7 +88,7 @@ function init(setup_filename)
     println("\tSD[u] = $uin_sd")
 
     x = [dx*(i - gc - 0.5) + xmin for i = 1:sz[1]]
-    y = [dx*(j - gc - 0.5) + ymin for j = 1:sz[2]]
+    y = [dy*(j - gc - 0.5) + ymin for j = 1:sz[2]]
 
     T2, T3 = prepare_tensors(P)
 
@@ -106,13 +104,12 @@ function init(setup_filename)
     u[:, :, 1] .= uin_mean
     u[:, :, 2] .= uin_sd
 
-    A, b, max_diagA = init_pressure_eq(P, dx, sz, gc)
-    Pl = Diagonal(A)
+    A, b, max_diag = init_pressure_eq(P, dx, dy, sz, gc)
 
     println("EQ INFO")
-    println("\tmax diag(A) = $max_diagA")
+    println("\tmax diag(A) = $max_diag")
 
-    prepare_dfunc!(setup_json["wind turbines"], x, y, dx, dfunc, sz)
+    prepare_dfunc!(setup_json["wind turbines"], x, y, dx, dy, dfunc, sz)
 
     output_path = setup_json["output"]
 
@@ -122,65 +119,88 @@ function init(setup_filename)
     solve_PD_Umag!(u, v, Umag, dfunc, T3, P, sz, gc)
 
     return Solver(
-        u, v, ut, vt, Umag, divU,
-        uin_mean, uin_sd, Re,
-        A, Pl, b, max_diagA, p,
-        dfunc,
-        x, y, dx, sz, gc,
+        u, v, ut, vt, Umag, divU, uin_mean, uin_sd, Re,
+        A, b, 1.2, max_diag, p, dfunc,
+        x, y, dx, dy, sz, gc,
         max_time, max_step, dt,
         P, T2, T3
     ), output_path
 end
 
-function time_integral!(s::Solver)
-    s.ut .= s.u
-    s.vt .= s.v
+function time_integral!(solver::Solver)
+    solver.ut .= solver.u
+    solver.vt .= solver.v
 
     pseudo_U!(
-        s.ut, s.vt, s.u, s.v, s.Umag, s.dfunc,
-        s.T2, s.T3, s.P,
-        1.0/s.Re, s.dx, s.dt,
-        s.sz, s.gc
+        solver.ut, solver.vt,
+        solver.u, solver.v,
+        solver.uu, solver.vv,
+        solver.Umag, solver.dfunc,
+        solver.T2, solver.T3, solver.P,
+        1/solver.Re,
+        solver.dx, solver.dy, solver.dt,
+        solver.sz, solver.gc
+    )
+    interpol_UU!(
+        solver.u, solver.v,
+        solver.uu, solver.vv,
+        solver.sz, solver.gc
+    )
+    apply_UUbc!(
+        solver.uu, solver.vv,
+        solver.sz, solver.gc
     )
     pressure_eq_b!(
-        s.u, s.v, s.b,
-        s.P, s.dx, s.dt,
-        s.max_diagA, s.sz, s.gc
+        solver.uu, solver.vv,
+        solver.b, solver.P,
+        solver.dx, solver.dy, solver.dt,
+        solver.max_diag,
+        solver.sz, solver.gc
     )
     solve_pressure_eq!(
-        s.p, s.b, s.P
+        solver.A, solver.p, solver.b, solver.ω,
+        solver.sz, solver.gc,
+        1e-6, 1000
     )
-    # solve_pressure_eq!(
-    #     s.A, s.p, s.b, s.P, s.sz, s.Pl
-    # )
-    update_U_by_grad_p!(
-        s.u, s.v, s.p,
-        s.P, s.dx, s.dt,
-        s.sz, s.gc
+    update_U_by_gradp!(
+        solver.u, solver.v,
+        solver.uu, solver.vv,
+        solver.p,
+        solver.P,
+        solver.dx, solver.dy, solver.dt,
+        solver.sz, solver.gc
     )
-    apply_U_bc!(
-        s.u, s.v, s.ut, s.vt,
-        s.uin_mean, s.uin_sd,
-        s.dx, s.dt, s.T2, s.T3, s.P,
-        s.sz, s.gc
+    apply_Ubc!(
+        solver.u, solver.v,
+        solver.ut, solver.vt,
+        solver.uin_mean, solver.uin_sd,
+        solver.dx, solver.dy, solver.dt,
+        solver.T2, solver.T3, solver.P,
+        solver.sz, solver.gc
     )
-    rms_divU = div_UK!(
-        s.u, s.v, s.divU,
-        s.dx, s.P, s.sz, s.gc
+    apply_UUbc!(
+        solver.uu, solver.vv,
+        solver.sz, solver.gc
     )
-    if rms_divU > 1
-        error("cfd solver not converging, |div(U)| = $rms_divU")
+    divU_mag = div_UK!(
+        solver.uu, solver.vv, solver.divU,
+        solver.dx, solver.dy, solver.P,
+        solver.sz, solver.gc
+    )
+    if divU_mag > 1
+        error("cfd solver failed to converge, |div(U)|/N = $divU_mag")
     end
     try
         solve_PD_Umag!(
-            s.u, s.v, s.Umag, s.dfunc,
-            s.T3, s.P,
-            s.sz, s.gc
+            solver.u, solver.v,
+            solver.Umag, solver.dfunc, 
+            solver.T3, solver.P,
+            solver.sz, solver.gc
         )
     catch pd_solver_error
         rethrow(pd_solver_error)
     end
-    return rms_divU
+    return divU_mag
 end
 
 function get_statistics(v, T2, P)
@@ -191,34 +211,14 @@ function get_statistics(v, T2, P)
     return v[1], var
 end
 
-function write_csv(filename::String, s::Solver)
-    # open(filename, "w") do f
-    #     write(f, "x,y,z,E[u],Var[u],E[v],Var[v],E[p],Var[p],|div(U)|,|Umag|\n")
-    #     gc = s.gc
-    #     sz = s.sz
-    #     x = s.x
-    #     y = s.y
-    #     u = s.u
-    #     v = s.v
-    #     p = s.p
-    #     divU = s.divU
-    #     T2 = s.T2
-    #     P = s.P
-    #     Umag = s.Umag
-    #     for j = gc+1:sz[2]-gc, i = gc+1:sz[1]-gc
-    #         Eu, Vu = get_statistics(u[i, j, :], T2, P)
-    #         Ev, Vv = get_statistics(v[i, j, :], T2, P)
-    #         Ep, Vp = get_statistics(p[i, j, :], T2, P)
-    #         write(f, "$(x[i]),$(y[j]),0,$Eu,$Vu,$Ev,$Vv,$Ep,$Vp,$(norm(divU[i,j,:])),$(norm(Umag[i,j,:]))\n")
-    #     end
-    # end
-    u = s.u
-    v = s.v
-    p = s.p
-    P = s.P
-    sz = s.sz
-    x = s.x
-    y = s.y
+function write_csv(filename::String, solver::Solver)
+    u = solver.u
+    v = solver.v
+    p = solver.p
+    P = solver.P
+    sz = solver.sz
+    x = solver.x
+    y = solver.y
     x_coord = zeros(sz)
     y_coord = zeros(sz)
     z_coord = zeros(sz)
@@ -226,7 +226,7 @@ function write_csv(filename::String, s::Solver)
         x_coord[i, j] = x[i]
         y_coord[i, j] = y[j]
     end
-    
+
     df = DataFrame(x = vec(x_coord), y = vec(y_coord), z = vec(z_coord))
     u_names = [Symbol("u$(K-1)") for K = 1:P + 1]
     v_names = [Symbol("v$(K-1)") for K = 1:P + 1]
