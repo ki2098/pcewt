@@ -92,7 +92,7 @@ function eq_resK!(A, xK, bK, rK, sz, gc)
         end
     end
     mag = norm(rK)
-    effective_cell_cnt = (sz[1] - 2*gc + 2)*(sz[2] - 2*gc + 2)
+    effective_cell_cnt = (sz[1] - 2*gc)*(sz[2] - 2*gc)
     return mag/sqrt(effective_cell_cnt)
 end
 

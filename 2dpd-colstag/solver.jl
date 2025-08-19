@@ -4,7 +4,7 @@ using CSV
 using DataFrames
 
 include("cfd.jl")
-include("eq.jl")
+include("eq2.jl")
 include("pce.jl")
 include("bc.jl")
 
@@ -125,6 +125,8 @@ function init(setup_filename)
     PD_Umag_init_guess!(u, v, Umag, sz)
     solve_PD_Umag!(u, v, Umag, dfunc, T3, P, sz, gc)
 
+    flush(stdout)
+
     return Solver(
         u, v, ut, vt, uu, vv,
         Umag, divU, uin_mean, uin_sd, Re,
@@ -172,10 +174,10 @@ function time_integral!(solver::Solver)
         solver.sz, solver.gc, solver.P,
         1e-6, 1000
     )
-    apply_pbc!(
-        solver.p,
-        solver.sz, solver.gc
-    )
+    # apply_pbc!(
+    #     solver.p,
+    #     solver.sz, solver.gc
+    # )
     update_U_by_gradp!(
         solver.u, solver.v,
         solver.uu, solver.vv,
