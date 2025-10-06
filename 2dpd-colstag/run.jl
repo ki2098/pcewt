@@ -9,14 +9,14 @@ solver, output = PceWt.init("setup.json")
 
 @time begin
 for step = 1:solver.max_step
-    try
+    # try
         div_err = PceWt.time_integral!(solver)
         println("It=$step, divU=$div_err    ")
         flush(stdout)
-    catch e
-        println("Error occured: $e")
-        break
-    end
+    # catch e
+        # println("Error occured: $e")
+        # break
+    # end
 end
 println()
 end

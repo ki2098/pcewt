@@ -4,7 +4,7 @@ using CSV
 using DataFrames
 
 include("cfd.jl")
-include("eq2.jl")
+include("eq.jl")
 include("pce.jl")
 include("bc.jl")
 
@@ -174,10 +174,10 @@ function time_integral!(solver::Solver)
         solver.sz, solver.gc, solver.P,
         1e-6, 1000
     )
-    # apply_pbc!(
-    #     solver.p,
-    #     solver.sz, solver.gc
-    # )
+    apply_pbc!(
+        solver.p,
+        solver.sz, solver.gc
+    )
     update_U_by_gradp!(
         solver.u, solver.v,
         solver.uu, solver.vv,

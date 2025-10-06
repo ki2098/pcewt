@@ -5,6 +5,7 @@ import LinearSolve
 using SparseArrays
 
 Pl = nothing
+println("$(@__FILE__) is used for linear solver")
 
 function prepare_pressure_eq_A(dx, dy, sz, gc)
     cell_count = prod(sz)
@@ -103,7 +104,7 @@ function solve_pressure_eq!(A, x, b, r, ω, sz, gc, P, tol, max_it; verbose=fals
     for K = 1:P + 1
         # prob = LinearSolve.LinearProblem(A, vec(b[:, :, K]), u0=vec(x[:, :, K]))
         # sol = LinearSolve.solve(prob, LinearSolve.KrylovJL_GMRES(), Pl=Pl, abstol=tol*prod(sz), maxiters=max_it, verbose=verbose)
-        # x[:, :, K] = reshape(sol.u, sz)
+        # x[:, :, K] .= reshape(sol.u, sz)
 
         IterativeSolvers.gmres!(
             vec(@view x[:, :, K]),

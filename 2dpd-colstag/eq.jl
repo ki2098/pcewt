@@ -1,6 +1,8 @@
 using LinearAlgebra
 using Base.Threads
 
+println("$(@__FILE__) is used for linear solver")
+
 function prepare_pressure_eq_A(dx, dy, sz, gc)
     A = zeros(sz..., 5)
     A[:, :, 1] .= 1

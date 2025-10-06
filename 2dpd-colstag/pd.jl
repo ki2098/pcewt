@@ -1,4 +1,5 @@
 using NLsolve
+using NonlinearSolve
 using LinearAlgebra
 using JSON
 using Intervals
@@ -31,35 +32,73 @@ function PD_Umag_init_guess!(u, v, Umag, sz)
     end
 end
 
+# function solve_cell_PD_Umag(uc, vc, Umagc_guess, T3, P)
+#     function F!(r, x)
+#         for K = 1:P + 1
+#             lsum, rsum = 0.0, 0.0
+#             for J = 1:P + 1, I = 1:P + 1
+#                 lsum += x[I]*x[J]*T3[I, J, K]
+#                 rsum += (uc[I]*uc[J] + vc[I]*vc[J])*T3[I, J, K]
+#             end
+#             r[K] = lsum - rsum
+#         end
+#     end
+
+#     function J!(J, x)
+#         fill!(J, 0.0)
+#         for K = 1:P + 1, L = 1:P + 1
+#             entry = 0.0
+#             for I = 1:P + 1
+#                 entry += x[I]*(T3[L, I, K] + T3[I, L, K])
+#             end
+#             J[K, L] = entry
+#         end
+#     end
+
+#     sol = nlsolve(F!, J!, Umagc_guess, ftol=(P + 1)*1e-6)
+#     if converged(sol)
+#         return sol.zero
+#     else
+#         error("solver for PD coefficients failed to converg. Final guess = $(sol.zero)")
+#     end
+# end
+
+function PD_F!(F, x, p)
+    local T3, uc, vc, P = p
+    for K = 1:P + 1
+        lsum, rsum = 0.0, 0.0
+        for J = 1:P + 1, I = 1:P + 1
+            lsum += x[I]*x[J]*T3[I, J, K]
+            rsum += (uc[I]*uc[J] + vc[I]*vc[J])*T3[I, J, K]
+        end
+        F[K] = lsum - rsum
+    end
+end
+
+function PD_J!(J, x, p)
+    local T3, _, _, P = p
+    fill!(J, 0.0)
+    for K = 1:P + 1, L = 1:P + 1
+        entry = 0.0
+        for I = 1:P + 1
+            entry += x[I]*(T3[L, I, K] + T3[I, L, K])
+        end
+        J[K, L] = entry
+    end
+end
+
+PD_nlf = NonlinearFunction(PD_F!; jac=PD_J!)
+
 function solve_cell_PD_Umag(uc, vc, Umagc_guess, T3, P)
-    function F!(r, x)
-        for K = 1:P + 1
-            lsum, rsum = 0.0, 0.0
-            for J = 1:P + 1, I = 1:P + 1
-                lsum += x[I]*x[J]*T3[I, J, K]
-                rsum += (uc[I]*uc[J] + vc[I]*vc[J])*T3[I, J, K]
-            end
-            r[K] = lsum - rsum
-        end
-    end
+    params = (T3, uc, vc, P)
 
-    function J!(J, x)
-        fill!(J, 0.0)
-        for K = 1:P + 1, L = 1:P + 1
-            entry = 0.0
-            for I = 1:P + 1
-                entry += x[I]*(T3[L, I, K] + T3[I, L, K])
-            end
-            J[K, L] = entry
-        end
-    end
+    nlprob = NonlinearProblem(PD_nlf, Umagc_guess, params)
+    sol = solve(nlprob, SimpleTrustRegion(); abstol=(P+1)*1e-6)
 
-    sol = nlsolve(F!, J!, Umagc_guess, ftol=(P + 1)*1e-6)
-    if converged(sol)
-        return sol.zero
-    else
-        error("solver for PD coefficients failed to converg. Final guess = $(sol.zero)")
+    if sol.retcode != :Success
+        error("!")
     end
+    return sol.u
 end
 
 function solve_PD_Umag!(u, v, Umag, dfunc, T3, P, sz, gc)
