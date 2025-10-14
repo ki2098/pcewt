@@ -1,5 +1,6 @@
 include("solver.jl")
 
+using Dates
 using .PceWt
 
 cd(@__DIR__)
@@ -7,7 +8,7 @@ println("now working in $(pwd())")
 
 solver, output = PceWt.init("setup.json")
 
-@time begin
+println(now())
 for step = 1:solver.max_step
     # try
         div_err = PceWt.time_integral!(solver)
@@ -19,6 +20,6 @@ for step = 1:solver.max_step
     # end
 end
 println()
-end
+println(now())
 
 PceWt.write_csv(output, solver)

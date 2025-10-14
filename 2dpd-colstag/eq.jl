@@ -17,6 +17,16 @@ function prepare_pressure_eq_A(dx, dy, sz, gc)
             A[i, j, 3] = Aw
             A[i, j, 4] = An
             A[i, j, 5] = As
+            # Ae = (i < sz[1] - gc) ? 1/(dx^2) : 0.0
+            # Aw = (i > gc + 1    ) ? 1/(dx^2) : 0.0
+            # An = (j < sz[2] - gc) ? 1/(dy^2) : 0.0
+            # As = (j > gc + 1    ) ? 1/(dy^2) : 0.0
+            # Ac = - (Ae + Aw + An + As)
+            # A[i, j, 1] = Ac
+            # A[i, j, 2] = Ae
+            # A[i, j, 3] = Aw
+            # A[i, j, 4] = An
+            # A[i, j, 5] = As
         end
     end 
 
@@ -34,7 +44,7 @@ function prepare_pressure_eq_A(dx, dy, sz, gc)
     #     A[i, j, 4] = - 1
     # end
 
-    # # right outer layer, pc + pw = 0
+    # # right outer layer, pc - pw = 0
     # @threads for j = gc + 1:sz[2] - gc
     #     i = sz[1] - gc + 1
     #     A[i, j, 1] = 1

@@ -10,8 +10,16 @@ function utopia_convection(fww, fw, fc, fe, fee, uW, uc, uE, dx)
     return 0.5*(xE + xW) + xA
 end
 
-function central_difference_convection(fw, fe, uc, dx)
-    return uc*(fe - fw)/(2*dx)
+function central_difference_convection(fw, fc, fe, uW, uE, dx)
+    fluxW = uW*(fc + fw)/2
+    fluxE = uE*(fe + fc)/2
+    return (fluxE - fluxW)/dx
+end
+
+function first_upwind_convection(fw, fc, fe, uW, uE, dx)
+    fluxW = (uW*(fc + fw) - abs(uW)*(fc - fw))/2
+    fluxE = (uE*(fe + fc) - abs(uE)*(fe - fc))/2
+    return (fluxE - fluxW)/dx
 end
 
 function cell_convectionK(uW, uc, uE, vS, vc, vN, f, T2, T3, K, P, dx, dy, i, j)
@@ -37,14 +45,17 @@ function cell_convectionK(uW, uc, uE, vS, vc, vN, f, T2, T3, K, P, dx, dy, i, j)
             uIdfJdx = utopia_convection(fwwJ, fwJ ,fcJ, feJ, feeJ, uWI, ucI, uEI, dx)
             vIdfJdy = utopia_convection(fssJ, fsJ, fcJ, fnJ, fnnJ, vSI, vcI, vNI, dy)
         else
-            ucI  = uc[I]
-            vcI  = vc[I]
+            uEI  = uE[I]
+            uWI  = uW[I]
+            vNI  = vN[I]
+            vSI  = vS[I]
+            fcJ  = fJ[i, j]
             feJ  = fJ[i + 1, j]
             fwJ  = fJ[i - 1, j]
             fnJ  = fJ[i, j + 1]
             fsJ  = fJ[i, j - 1]
-            uIdfJdx = central_difference_convection(fwJ, feJ, ucI, dx)
-            vIdfJdy = central_difference_convection(fsJ, fnJ, vcI, dy)
+            uIdfJdx = central_difference_convection(fwJ, fcJ, feJ, uWI, uEI, dx)
+            vIdfJdy = central_difference_convection(fsJ, fcJ, fnJ, vSI, vNI, dy)
         end
         convection += (uIdfJdx + vIdfJdy)*(T3[I, J, K]/T2[K, K])
     end
