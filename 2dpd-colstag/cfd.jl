@@ -24,40 +24,42 @@ end
 
 function cell_convectionK(uW, uc, uE, vS, vc, vN, f, T2, T3, K, P, dx, dy, i, j)
     convection = 0.0
-    for J = 1:P + 1, I = 1:P + 1
-        fJ = @view f[:, :, J]
-        if I == 1
-            ucI  = uc[I]
-            uEI  = uE[I]
-            uWI  = uW[I]
-            vcI  = vc[I]
-            vNI  = vN[I]
-            vSI  = vS[I]
-            fcJ  = fJ[i, j]
-            feJ  = fJ[i + 1, j]
-            feeJ = fJ[i + 2, j]
-            fwJ  = fJ[i - 1, j]
-            fwwJ = fJ[i - 2, j]
-            fnJ  = fJ[i, j + 1]
-            fnnJ = fJ[i, j + 2]
-            fsJ  = fJ[i, j - 1]
-            fssJ = fJ[i, j - 2]
-            uIdfJdx = utopia_convection(fwwJ, fwJ ,fcJ, feJ, feeJ, uWI, ucI, uEI, dx)
-            vIdfJdy = utopia_convection(fssJ, fsJ, fcJ, fnJ, fnnJ, vSI, vcI, vNI, dy)
-        else
-            uEI  = uE[I]
-            uWI  = uW[I]
-            vNI  = vN[I]
-            vSI  = vS[I]
-            fcJ  = fJ[i, j]
-            feJ  = fJ[i + 1, j]
-            fwJ  = fJ[i - 1, j]
-            fnJ  = fJ[i, j + 1]
-            fsJ  = fJ[i, j - 1]
-            uIdfJdx = central_difference_convection(fwJ, fcJ, feJ, uWI, uEI, dx)
-            vIdfJdy = central_difference_convection(fsJ, fcJ, fnJ, vSI, vNI, dy)
+    
+    for I = 1:P + 1
+
+        ucI  = uc[I]
+        uEI  = uE[I]
+        uWI  = uW[I]
+        vcI  = vc[I]
+        vNI  = vN[I]
+        vSI  = vS[I]
+
+        for J = 1:P + 1
+            if I == 1
+                fcJ  = f[i, j, J]
+                feJ  = f[i + 1, j, J]
+                feeJ = f[i + 2, j, J]
+                fwJ  = f[i - 1, j, J]
+                fwwJ = f[i - 2, j, J]
+                fnJ  = f[i, j + 1, J]
+                fnnJ = f[i, j + 2, J]
+                fsJ  = f[i, j - 1, J]
+                fssJ = f[i, j - 2, J]
+                uIdfJdx = utopia_convection(fwwJ, fwJ ,fcJ, feJ, feeJ, uWI, ucI, uEI, dx)
+                vIdfJdy = utopia_convection(fssJ, fsJ, fcJ, fnJ, fnnJ, vSI, vcI, vNI, dy)
+            else
+                fcJ  = f[i, j, J]
+                feJ  = f[i + 1, j, J]
+                fwJ  = f[i - 1, j, J]
+                fnJ  = f[i, j + 1, J]
+                fsJ  = f[i, j - 1, J]
+                uIdfJdx = central_difference_convection(fwJ, fcJ, feJ, uWI, uEI, dx)
+                vIdfJdy = central_difference_convection(fsJ, fcJ, fnJ, vSI, vNI, dy)
+                # uIdfJdx = first_upwind_convection(fwJ, fcJ, feJ, uWI, uEI, dx)
+                # vIdfJdy = first_upwind_convection(fsJ, fcJ, fnJ, vSI, vNI, dy)
+            end
+            convection += (uIdfJdx + vIdfJdy)*(T3[I, J, K]/T2[K, K])
         end
-        convection += (uIdfJdx + vIdfJdy)*(T3[I, J, K]/T2[K, K])
     end
     return convection
 end
