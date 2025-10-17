@@ -75,10 +75,8 @@ end
 function kernel_pseudo_U!(ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, μ, dx, dy, dt, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
-    if (
-        gc+1 <= i <= sz[1]-gc && 
-        gc+1 <= j <= sz[2]-gc
-    )
+
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
         uE = uu[i    , j, :]
         uW = uu[i - 1, j, :]
         uc = ut[i    , j, :]
@@ -104,19 +102,14 @@ function kernel_interpolate_U!(u, v, uu, vv, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
 
-    if (
-        gc+1 <= i <= sz[1]-gc && 
-        gc+1 <= j <= sz[2]-gc
-    )
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
         uu[i, j, :] = 0.5*(u[i, j, :] + u[i + 1, j, :])
     end
 
-    if (
-        gc+1 <= i <= sz[1]-gc && 
-        gc+1 <= j <= sz[2]-gc-1
-    )
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc-1
         vv[i, j, :] = 0.5*(v[i, j, :] + v[i, j + 1, :])
     end
+
     return nothing
 end
 
@@ -124,16 +117,75 @@ function kernel_pressure_eq_b!(uu, vv, b, dx, dy, dt, max_diag, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
 
-    if (
-        gc+1 <= i <= sz[1]-gc && 
-        gc+1 <= j <= sz[2]-gc
-    )
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
         dudx = (uu[i, j, :] - uu[i - 1, j, :])/dx
         dvdy = (vv[i, j, :] - vv[i, j - 1, :])/dy
         b[i, j, :] = (dudx + dvdy)/(dt*max_diag)
     end
+
+    return nothing
+end
+
+function gpu_pseudo_U!(ut, vt, u, v, uu, vv, b, Umag, dfunc, T2, T3, P, μ, dx, dy, dt, max_diag, sz, gc, nthread)
+    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
+    @cuda threads=nthread blocks=nblock kernel_pseudo_U!(
+        ut, vt, u, v, uu, vv, Umag, dfunc, T2, T3, P, μ, dx, dy, dt, sz, gc
+    )
+    @cuda threads=nthread blocks=nblock kernel_interpolate_U!(
+        u, v, uu, vv, sz, gc
+    )
+    @cuda threads=nthread blocks=nblock kernel_pressure_eq_b!(
+        uu, vv, b, dx, dy, dt, max_diag, sz, gc
+    )
 end
 
 function kernel_update_U!(u, v, uu, vv, p, dx, dy, dt, sz, gc)
-    
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
+        dpdx = (p[i + 1, j, :] - p[i - 1, j, :])/(2*dx)
+        dpdy = (p[i, j + 1, :] - p[i, j - 1, :])/(2*dy)
+        u[i, j, :] -= dt*dpdx
+        v[i, j, :] -= dt*dpdy
+    end
+
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
+        dpdx = (p[i + 1, j, :] - p[i, j, :])/dx
+        uu[i, j, :] -= dt*dpdx
+    end
+
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc-1
+        dpdy = (p[i, j + 1, :] - p[i, j, :])/dy
+        vv[i, j, :] -= dt*dpdy
+    end
+
+    return nothing
+end
+
+function gpu_update_U!(u, v, uu, vv, p, dx, dy, dt, sz, gc, nthread)
+    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
+    @cuda threads=nthread blocks=nblock kernel_update_U!(
+        u, v, uu, vv, p, dx, dy, dt, sz, gc
+    )
+end
+
+function kernel_divUK!(uu, vv, divU, dx, dy, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+
+    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
+        dudx = (uu[i, j, :] - uu[i - 1, j, :])/dx
+        dvdy = (vv[i, j, :] - vv[i, j - 1, :])/dy
+        divU[i, j, :] = dudx + dvdy
+    end
+
+    return nothing
+end
+
+function gpu_divUK!(uu, vv, divU, dx, dy, sz, gc, nthread)
+    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
+    @cuda threads=nthread blocks=nblock kernel_divUK!(
+        uu, vv, divU, dx, dy, sz, gc
+    )
 end
