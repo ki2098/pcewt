@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-pce_df = pd.read_csv('data/pce-statistics.csv')
+pce_df = pd.read_csv('data/gpu-pce-statistics.csv')
 mc_df = pd.read_csv('data/mc-statistics.csv')
 
 points = pce_df[['x', 'y']].values
@@ -91,8 +91,8 @@ def plot_variable(varname: str):
     mc_var_hline = griddata(points, mc_var, hline)
 
     plt.figure()
-    plt.plot(vy, pce_var_vline, label=f'PCE (P=5) along x = {x_plot}', linewidth=1, color='blue')
-    plt.plot(hx, pce_var_hline, label=f'PCE (P=5) along y = {y_plot}', linewidth=1, color='blue', ls=':')
+    plt.plot(vy, pce_var_vline, label=f'GPU PCE (P=5) along x = {x_plot}', linewidth=1, color='blue')
+    plt.plot(hx, pce_var_hline, label=f'GPU PCE (P=5) along y = {y_plot}', linewidth=1, color='blue', ls=':')
     plt.scatter(vy[::3], mc_var_vline[::3], label=f'Monte Carlo (500 samples) along x = {x_plot}', marker='+', s=50, c='red')
     plt.scatter(hx[::3], mc_var_hline[::3], label=f'Monte Carlo (500 samples) along y = {y_plot}', marker='.', c='red')
     if varname == 'E[u]':
