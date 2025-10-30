@@ -29,10 +29,10 @@ function gpu_pressure_eq_A(dx, dy, sz, gc, nthread)
     return A, maxdiag
 end
 
-function gpu_init_pressure_eq(P, dx, dy, sz, gc, nthread)
+function gpu_init_pressure_eq(dx, dy, sz, gc, nthread)
     A, maxdiag = gpu_pressure_eq_A(dx, dy, sz, gc, nthread)
-    b = CUDA.zeros(Float64, sz..., P+1)
-    r = CUDA.zeros(Float64, sz..., P+1)
+    b = CUDA.zeros(Float64, sz...)
+    r = CUDA.zeros(Float64, sz...)
     return A, b, r, maxdiag
 end
 

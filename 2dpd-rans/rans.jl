@@ -1,7 +1,7 @@
 include("cfd.jl")
 
 const βasterisk = 0.09
-const γ1 = 5.0/9
+const γ1 = 0.555555555556
 const β1 = 0.075
 const σk1 = 0.85
 const σω1 = 0.5
@@ -10,7 +10,7 @@ const β2 = 0.0828
 const σk2 = 1.0
 const σω2 = 0.856
 
-function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, dx, dy, sz, gc)
+function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
@@ -27,8 +27,12 @@ function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, 
         ωs = ωold[i, j-1]
         kx = (ke - kw)/(2*dx)
         ky = (kn - ks)/(2*dy)
+        kxx = (ke - 2*kc + kw)/(dx^2)
+        kyy = (kn - 2*kc + ks)/(dy^2)
         ωx = (ωe - ωw)/(2*dx)
         ωy = (ωn - ωs)/(2*dy)
+        ωxx = (ωe - 2*ωc + ωw)/(dx^2)
+        ωyy = (ωn - 2*ωc + ωs)/(dy^2)
         CDkω = max(1e-10, 2*σω2*(kx*ωx + ky*ωy)/ωc)
         arg1 = 4*σω2*kc /(CDkω * z^2)
         arg2 = 500*nu / (z^2 * ωc)
@@ -38,15 +42,12 @@ function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, 
         σk = F1*σk1 + (1 - F1)*σk2
         σω = F1*σω1 + (1 - F1)*σω2
 
-        k_convection = cell_convection(kold, u, v, uu, vv, dx, dy, i, j)
-        k_diffusion = cell_diffusion(kold, nu + nutc*σk, dx, dy, i, j)
-        ω_convection = cell_convection(ωold, u, v, uu, vv, dx, dy, i, j)
-        ω_diffusion = cell_diffusion(ωold, nu + nutc*σω, dx, dy, i, j)
-
+        uc = u[i  , j]
         ue = u[i+1, j]
         uw = u[i-1, j]
         un = u[i, j+1]
         us = u[i, j-1]
+        vc = v[i, j  ]
         ve = v[i+1, j]
         vw = v[i-1, j]
         vn = v[i, j+1]
@@ -55,6 +56,11 @@ function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, 
         uy = (un - us)/(2*dy)
         vx = (ve - vw)/(2*dx)
         vy = (vn - vs)/(2*dy)
+
+        k_convection = uc*kx + vc*ky
+        k_diffusion = (nu + σk*nutc)*(kxx + kyy)
+        ω_convection = uc*ωx + vc*ωy
+        ω_diffusion = (nu + σω*nutc)*(ωxx + ωyy)
 
         Pk = nutc*(2*ux^2 + 2*vy^2 + uy^2 + vx^2 + 2*vx*uy)
         Pktilde = min(Pk, 10*βasterisk*kc*ωc)
@@ -84,9 +90,9 @@ function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, 
     nothing
 end
 
-function gpu_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, dx, dy, sz, gc, nthread)
+function gpu_kωSST2003!(knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, sz, gc, nthread)
     nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
     @cuda threads=nthread blocks=nblock kernel_kωSST2003!(
-        knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, dx, dy, sz, gc
+        knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, sz, gc
     )
 end

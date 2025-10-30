@@ -122,3 +122,71 @@ function gpu_pbc!(p, sz, gc)
         p, sz, gc
     )
 end
+
+function kernel_kbc_x!(k, kin, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if i <= 1 && gc < j <= sz[2]-gc
+        k[gc, j] = kin
+        k[sz[1]-gc+1, j] = k[sz[1]-gc, j]
+    end
+    nothing
+end
+
+function kernel_kbc_y!(k, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc && j <= 1
+        k[i, gc] = k[i, gc+1]
+        k[i, sz[2]-gc+1] = k[i, sz[2]-gc]
+    end
+    nothing
+end
+
+function gpu_kbc!(k, kin, sz, gc)
+    nthread = (1, 32)
+    nblock = (1, cld(sz[2], nthread[2]))
+    @cuda threads=nthread blocks=nblock kernel_kbc_x!(
+        k, kin, sz, gc
+    )
+
+    nthread = (32, 1)
+    nblock = (cld(sz[1], nthread[1]), 1)
+    @cuda threads=nthread blocks=nblock kernel_kbc_y!(
+        k, sz, gc
+    )
+end
+
+function kernel_ωbc_x!(ω, ωin, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if i <= 1 && gc < j <= sz[2]-gc
+        ω[gc, j] = ωin
+        ω[sz[1]-gc+1, j] = ω[sz[1]-gc, j]
+    end
+    nothing
+end
+
+function kernel_ωbc_y!(ω, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc && j <= 1
+        ω[i, gc] = ω[i, gc+1]
+        ω[i, sz[2]-gc+1] = ω[i, sz[2]-gc]
+    end
+    nothing
+end
+
+function gpu_ωbc!(ω, ωin, sz, gc)
+    nthread = (1, 32)
+    nblock = (1, cld(sz[2], nthread[2]))
+    @cuda threads=nthread blocks=nblock kernel_ωbc_x!(
+        ω, ωin, sz, gc
+    )
+
+    nthread = (32, 1)
+    nblock = (cld(sz[1], nthread[1]), 1)
+    @cuda threads=nthread blocks=nblock kernel_ωbc_y!(
+        ω, sz, gc
+    )
+end
