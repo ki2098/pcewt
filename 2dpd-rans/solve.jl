@@ -5,7 +5,7 @@ include("rans.jl")
 include("bc.jl")
 include("pd.jl")
 
-nthreads=(16,16)
+nthread=(16,16)
 
 struct Ls
     A
@@ -17,7 +17,7 @@ struct Ls
     maxerr
 end
 
-struct Cfd
+struct Solver
     u
     v
     ut
@@ -119,7 +119,7 @@ function init(path)
     dfunc = prepare_dfunc(init_json["wind turbines"], x, y, dx, dy, sz)
     
 
-    cfd = Cfd(
+    so = Solver(
         u, v, ut, vt, uu, vv, p,
         k, ω, kt, ωt, nut,
         divU, dfunc,
@@ -131,6 +131,84 @@ function init(path)
 
     output_path = init_json["output"]
     println("output to $output_path")
+    flush(stdout)
 
-    return cfd
+    return so, output_path
+end
+
+function time_integral!(so::Solver)
+    so.ut .= so.u
+    so.vt .= so.v
+    so.kt .= so.k
+    so.ωt .= so.ω
+    ls = so.ls
+
+    gpu_pseudo_U!(
+        so.u, so.v, so.ut, so.vt, so.uu, so.vv, so.nut, so.dfunc,
+        ls.b, so.dx, so.dy, so.dt, 1/so.Re, ls.maxdiag,
+        so.sz, so.gc, nthread
+    )
+    lsit, lserr = gpu_sor!(
+        ls.A, so.p, ls.b, ls.r, ls.ω,
+        so.sz, so.gc, ls.maxerr, ls.maxit, nthread
+    )
+    gpu_pbc!(
+        so.p, so.sz, so.gc
+    )
+    gpu_project_p!(
+        so.u, so.v, so.uu, so.vv, so.p,
+        so.dx, so.dy, so.dt,
+        so.sz, so.gc, nthread
+    )
+    gpu_Ubc!(
+        so.u, so.v, so.ut, so.vt,
+        so.uin, so.dx, so.dt,
+        so.sz, so.gc
+    )
+    gpu_UUbc!(
+        so.uu, so.vv, so.uin,
+        so.sz, so.gc
+    )
+    divmag = gpu_divU!(
+        so.uu, so.vv, so.divU,
+        so.dx, so.dy,
+        so.sz, so.gc, nthread
+    )
+    if divmag > 1
+        error("cfd solver failed to converge, |div U|/N = $divmag")
+    end
+    return lsit, lserr, divmag
+end
+
+function write_csv(path::String, so::Solver)
+    u = so.u
+    v = so.v
+    p = so.p
+    k = so.k
+    ω = so.ω
+    x = so.x
+    y = so.y
+    sz = so.sz
+    gc = so.gc
+    x_coord = zeros(sz...)
+    y_coord = zeros(sz...)
+    z_coord = zeros(sz...)
+    for j = 1:sz[2], i = 1:sz[1]
+        x_coord[i, j] = x[i]
+        y_coord[i, j] = y[j]
+    end
+
+    df = DataFrame(
+        x = vec(@view x_coord[gc+1:sz[1]-gc, gc+1:sz[2]-gc]),
+        y = vec(@view y_coord[gc+1:sz[1]-gc, gc+1:sz[2]-gc]),
+        z = vec(@view z_coord[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+    )
+
+    df[!, u] = vec(@view u[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+    df[!, v] = vec(@view v[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+    df[!, p] = vec(@view p[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+    df[!, k] = vec(@view k[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+    df[!, omega] = vec(@view ω[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+    CSV.write(path, df)
+    println("written to $path")
 end

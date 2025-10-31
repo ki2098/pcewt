@@ -40,7 +40,7 @@ function cell_diffusion(f, nu, dx, dy, i, j)
     return nu*(d2fdx2 + d2fdy2)
 end
 
-function kernel_pseudo_U!(u, v, ut, vt, uu, vv, nut, Umag, dfunc, dx, dy, dt, nu, sz, gc)
+function kernel_pseudo_U!(u, v, ut, vt, uu, vv, nut, dfunc, dx, dy, dt, nu, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
@@ -49,9 +49,13 @@ function kernel_pseudo_U!(u, v, ut, vt, uu, vv, nut, Umag, dfunc, dx, dy, dt, nu
         u_diff = cell_diffusion(ut, nu_eff, dx, dy, i, j)
         v_conv = cell_convection(vt, ut, vt, uu, vv, dx, dy, i, j)
         v_diff = cell_diffusion(vt, nu_eff, dx, dy, i, j)
-        fx, fy = 0, 0
-        u[i, j] = ut[i, j] + dt*(- u_conv + u_diff - fx)
-        v[i, j] = vt[i, j] + dt*(- v_conv + v_diff - fy)
+        uc = ut[i, j]
+        vc = vt[i, j]
+        UMag = sqrt(uc^2 + vc^2)
+        fx = dfunc[i, j]*UMag*uc
+        fy = dfunc[i, j]*UMag*vc
+        u[i, j] = uc + dt*(- u_conv + u_diff - fx)
+        v[i, j] = vc + dt*(- v_conv + v_diff - fy)
     end
     nothing
 end
@@ -114,10 +118,10 @@ function kernel_divU!(uu, vv, divU, dx, dy, sz, gc)
     nothing
 end
 
-function gpu_pseudo_U!(u, v, ut, vt, uu, vv, nut, Umag, dfunc, b, dx, dy, dt, nu, maxdiag, sz, gc, nthread)
+function gpu_pseudo_U!(u, v, ut, vt, uu, vv, nut, dfunc, b, dx, dy, dt, nu, maxdiag, sz, gc, nthread)
     nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
     @cuda threads=nthread blocks=nblock kernel_pseudo_U!(
-        u, v, ut, vt, uu, vv, nut, Umag, dfunc,
+        u, v, ut, vt, uu, vv, nut, dfunc,
         dx, dy, dt, nu, sz, gc
     )
     @cuda threads=nthread blocks=nblock kernel_interpolate_UU!(
