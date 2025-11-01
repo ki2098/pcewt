@@ -73,9 +73,9 @@ function kernel_interpolate_UU!(u, v, uu, vv, sz, gc)
 end
 
 function cell_divU(uu, vv, dx, dy, i, j)
-    uE = uu[i, j]
+    uE = uu[i    , j]
     uW = uu[i - 1, j]
-    vN = vv[i, j]
+    vN = vv[i, j    ]
     vS = vv[i, j - 1]
     return (uE - uW)/dx + (vN - vS)/dy
 end
@@ -148,3 +148,5 @@ function gpu_divU!(uu, vv, divU, dx, dy, sz, gc, nthread)
     ncell_effective = (sz[1] - 2*gc)*(sz[2] - 2*gc)
     return divmag/sqrt(ncell_effective)
 end
+
+# checked
