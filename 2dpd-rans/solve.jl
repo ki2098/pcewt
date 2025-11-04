@@ -76,7 +76,7 @@ function init(path)
     println("\tdt = $dt")
     println("\ttotal steps = $maxstep")
 
-    Re = setup_json["cfd"]["Re"]
+    Re = init_json["cfd"]["Re"]
     println("CFD INFO")
     println("\tRe = $Re")
 
@@ -89,7 +89,7 @@ function init(path)
     println("\tk = $kin")
     println("\tω = $ωin")
 
-    A, b, r, maxdiag = gpu_init_pressure_eq(dx, dy, sz, gc, nthreads)
+    A, b, r, maxdiag = gpu_init_pressure_eq(dx, dy, sz, gc, nthread)
     ls = Ls(A, b, r, 1.2, maxdiag, 1000, 1e-4)
     println("EQ INFO")
     println("\tmax diag(A) = $maxdiag")
@@ -111,12 +111,13 @@ function init(path)
     ωt   = CUDA.zeros(Float64, sz...)
     nut  = CUDA.zeros(Float64, sz...)
     divU = CUDA.zeros(Float64, sz...)
-    fill!(u , uin)
-    fill!(ut, uin)
-    fill!(uu, uin)
-    fill!(k , kin)
-    fill!(ω , ωin)
-    dfunc = prepare_dfunc(init_json["wind turbines"], x, y, dx, dy, sz)
+    fill!(u  , uin)
+    fill!(ut , uin)
+    fill!(uu , uin)
+    fill!(k  , kin)
+    fill!(ω  , ωin)
+    fill!(nut, kin/ωin)
+    dfunc = prepare_dfunc(init_json["wind turbines"], x_h, y_h, dx, dy, sz)
     
 
     so = Solver(
@@ -169,25 +170,40 @@ function time_integral!(so::Solver)
         so.uu, so.vv, so.uin,
         so.sz, so.gc
     )
+    gpu_kωSST2003!(
+        so.k, so.ω, so.kt, so.ωt, so.u, so.v, so.uu, so.vv, so.nut,
+        1/so.Re, 1.25, so.dx, so.dy, so.dt,
+        so.sz, so.gc, nthread
+    )
+    gpu_kbc!(
+        so.k, so.kt, so.kin, so.u,
+        so.dx, so.dt, so.sz, so.gc
+    )
+    gpu_ωbc!(
+        so.ω, so.ωt, so.ωin, so.u,
+        so.dx, so.dt, so.sz, so.gc
+    )
     divmag = gpu_divU!(
         so.uu, so.vv, so.divU,
         so.dx, so.dy,
         so.sz, so.gc, nthread
     )
-    if divmag > 1
+    if divmag > 1 || isnan(divmag)
         error("cfd solver failed to converge, |div U|/N = $divmag")
     end
     return lsit, lserr, divmag
 end
 
 function write_csv(path::String, so::Solver)
-    u = so.u
-    v = so.v
-    p = so.p
-    k = so.k
-    ω = so.ω
-    x = so.x
-    y = so.y
+    u = Array(so.u)
+    v = Array(so.v)
+    p = Array(so.p)
+    k = Array(so.k)
+    ω = Array(so.ω)
+    nut = Array(so.nut)
+    divu = Array(so.divU)
+    x = Array(so.x)
+    y = Array(so.y)
     sz = so.sz
     gc = so.gc
     x_coord = zeros(sz...)
@@ -199,16 +215,18 @@ function write_csv(path::String, so::Solver)
     end
 
     df = DataFrame(
-        x = vec(@view x_coord[gc+1:sz[1]-gc, gc+1:sz[2]-gc]),
-        y = vec(@view y_coord[gc+1:sz[1]-gc, gc+1:sz[2]-gc]),
-        z = vec(@view z_coord[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+        x = vec(x_coord),
+        y = vec(y_coord),
+        z = vec(z_coord)
     )
 
-    df[!, u] = vec(@view u[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
-    df[!, v] = vec(@view v[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
-    df[!, p] = vec(@view p[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
-    df[!, k] = vec(@view k[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
-    df[!, omega] = vec(@view ω[gc+1:sz[1]-gc, gc+1:sz[2]-gc])
+    df[!, :u] = vec(u)
+    df[!, :v] = vec(v)
+    df[!, :p] = vec(p)
+    df[!, :k] = vec(k)
+    df[!, :omega] = vec(ω)
+    df[!, :nut] = vec(nut)
+    df[!, :divu] = vec(divu)
     CSV.write(path, df)
     println("written to $path")
 end

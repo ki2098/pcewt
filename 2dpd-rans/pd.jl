@@ -45,4 +45,5 @@ function prepare_dfunc(wt_info_json, x, y, dx, dy, sz)
         end
     end
     dfunc_d = CuArray(dfunc)
+    return dfunc_d
 end

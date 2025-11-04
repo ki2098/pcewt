@@ -10,7 +10,7 @@ const β2 = 0.0828
 const σk2 = 1.0
 const σω2 = 0.856
 
-function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, sz, gc)
+function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, dx, dy, dt, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
@@ -42,12 +42,12 @@ function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, 
         σk = F1*σk1 + (1 - F1)*σk2
         σω = F1*σω1 + (1 - F1)*σω2
 
-        uc = u[i  , j]
+        # uc = u[i  , j]
         ue = u[i+1, j]
         uw = u[i-1, j]
         un = u[i, j+1]
         us = u[i, j-1]
-        vc = v[i, j  ]
+        # vc = v[i  , j]
         ve = v[i+1, j]
         vw = v[i-1, j]
         vn = v[i, j+1]
@@ -57,10 +57,14 @@ function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, 
         vx = (ve - vw)/(2*dx)
         vy = (vn - vs)/(2*dy)
 
-        k_convection = uc*kx + vc*ky
-        k_diffusion = (nu + σk*nutc)*(kxx + kyy)
-        ω_convection = uc*ωx + vc*ωy
-        ω_diffusion = (nu + σω*nutc)*(ωxx + ωyy)
+        # k_convection = uc*kx + vc*ky
+        # k_diffusion = (nu + σk*nutc)*(kxx + kyy)
+        # ω_convection = uc*ωx + vc*ωy
+        # ω_diffusion = (nu + σω*nutc)*(ωxx + ωyy)
+        k_convection = cell_convection(kold, u, v, uu, vv, dx, dy, i, j)
+        k_diffusion = cell_diffusion(kold, nu + σk*nutc, dx, dy, i, j)
+        ω_convection = cell_convection(ωold, u, v, uu, vv, dx, dy, i, j)
+        ω_diffusion = cell_diffusion(ωold, nu + σω*nutc, dx, dy, i, j)
 
         Pk = nutc*(2*ux^2 + 2*vy^2 + uy^2 + vx^2 + 2*vx*uy)
         Pktilde = min(Pk, 10*βasterisk*kc*ωc)
@@ -90,9 +94,11 @@ function kernel_kωSST2003!(knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, 
     nothing
 end
 
-function gpu_kωSST2003!(knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, sz, gc, nthread)
+function gpu_kωSST2003!(knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, dx, dy, dt, sz, gc, nthread)
     nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
     @cuda threads=nthread blocks=nblock kernel_kωSST2003!(
-        knew, ωnew, kold, ωold, u, v, nut, nu, z, dx, dy, sz, gc
+        knew, ωnew, kold, ωold, u, v, uu, vv, nut, nu, z, dx, dy, dt, sz, gc
     )
 end
+
+# checked

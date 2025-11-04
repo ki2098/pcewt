@@ -66,7 +66,7 @@ function kernel_pbc_x!(p, sz, gc)
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if i <= 1 && gc < j <= sz[2]-gc
         p[gc, j] = p[gc+1, j]
-        p[sz[1]-gc+1, j] = p[sz[1]-gc, j]
+        p[sz[1]-gc+1, j] = 0
     end
     nothing
 end
@@ -81,12 +81,18 @@ function kernel_pbc_y!(p, sz, gc)
     nothing
 end
 
-function kernel_kbc_x!(k, kin, sz, gc)
+function kernel_kbc_x!(k, kt, kin, u, dx, dt, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if i <= 1 && gc < j <= sz[2]-gc
         k[gc, j] = kin
-        k[sz[1]-gc+1, j] = k[sz[1]-gc, j]
+        
+        i = i+sz[1]-gc
+        kc  = kt[i  , j]
+        kw  = kt[i-1, j]
+        kww = kt[i-2, j]
+        kx = left_side_dfdx(kww, kw, kc, dx)
+        k[i, j] = kc - dt*u[i, j]*kx
     end
     nothing
 end
@@ -101,12 +107,18 @@ function kernel_kbc_y!(k, sz, gc)
     nothing
 end
 
-function kernel_ωbc_x!(ω, ωin, sz, gc)
+function kernel_ωbc_x!(ω, ωt, ωin, u, dx, dt, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if i <= 1 && gc < j <= sz[2]-gc
         ω[gc, j] = ωin
-        ω[sz[1]-gc+1, j] = ω[sz[1]-gc, j]
+
+        i = i+sz[1]-gc
+        ωc  = ωt[i  , j]
+        ωw  = ωt[i-1, j]
+        ωww = ωt[i-2, j]
+        ωx = left_side_dfdx(ωww, ωw, ωc, dx)
+        ω[i, j] = ωc - dt*u[i, j]*ωx
     end
     nothing
 end
@@ -163,11 +175,11 @@ function gpu_pbc!(p, sz, gc)
     )
 end
 
-function gpu_kbc!(k, kin, sz, gc)
+function gpu_kbc!(k, kt, kin, u, dx, dt, sz, gc)
     nthread = (1, 32)
     nblock = (1, cld(sz[2], nthread[2]))
     @cuda threads=nthread blocks=nblock kernel_kbc_x!(
-        k, kin, sz, gc
+        k, kt, kin, u, dx, dt, sz, gc
     )
 
     nthread = (32, 1)
@@ -177,11 +189,11 @@ function gpu_kbc!(k, kin, sz, gc)
     )
 end
 
-function gpu_ωbc!(ω, ωin, sz, gc)
+function gpu_ωbc!(ω, ωt, ωin, u, dx, dt, sz, gc)
     nthread = (1, 32)
     nblock = (1, cld(sz[2], nthread[2]))
     @cuda threads=nthread blocks=nblock kernel_ωbc_x!(
-        ω, ωin, sz, gc
+        ω, ωt, ωin, u, dx, dt, sz, gc
     )
 
     nthread = (32, 1)

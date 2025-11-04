@@ -4,7 +4,7 @@ using CUDA
 function kernel_pressure_eq_A!(A, dx, dy, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
-    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
         Ae = Aw = 1/(dx^2)
         An = As = 1/(dy^2)
         Ac = - (Ae + Aw + An + As)
@@ -54,7 +54,7 @@ end
 function kernel_residual!(A, x, b, r, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
-    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
         r[i, j] = cell_residual(A, x, b, i, j)
     end
     nothing
@@ -63,7 +63,7 @@ end
 function kernel_colored_sor_sweep!(A, x, b, ω, sz, gc, c)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
-    if gc+1 <= i <= sz[1]-gc && gc+1 <= j <= sz[2]-gc
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
         if (i + j)%2 == c
             x[i, j] += ω*cell_residual(A, x, b, i, j)/A[i, j, 1]
         end
@@ -91,6 +91,9 @@ function gpu_sor!(A, x, b, r, ω, sz, gc, maxerr, maxit, nthread)
         it += 1
         if errmag <= maxerr || it >= maxit
             break
+        end
+        if errmag > 1 || isnan(errmag)
+            error("linear solver failed to converge, |r|/N = $errmag")
         end
     end
     return it, errmag
