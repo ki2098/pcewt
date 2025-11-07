@@ -1,11 +1,12 @@
 using LinearAlgebra
 using CUDA
 
-function kernel_pressure_eq_A!(A, dx, sz, gc)
+function kernel_pressure_eq_A!(A, dx, dy, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
-        Ae = Aw = An = As = 1/(dx^2)
+        Ae = Aw = 1/(dx^2)
+        An = As = 1/(dy^2)
         Ac = - (Ae + Aw + An + As)
         A[i, j, 1] = Ac
         A[i, j, 2] = Ae
@@ -13,26 +14,31 @@ function kernel_pressure_eq_A!(A, dx, sz, gc)
         A[i, j, 4] = An
         A[i, j, 5] = As
     end
-    nothing
+    return nothing
 end
 
-function gpu_pressure_eq_A(dx, sz, gc, nthread)
-    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
-    A = CUDA.zeros(Float64, sz..., 5)
+function gpu_pressure_eq_A(dx, dy, sz, gc, nthread)
+    nblock = (
+        cld(sz[1], nthread[1]),
+        cld(sz[2], nthread[2])
+    )
+    A = CUDA.zeros(sz..., 5)
     A[:, :, 1] .= 1
     @cuda threads=nthread blocks=nblock kernel_pressure_eq_A!(
-        A, dx, sz, gc
+        A,
+        dx, dy,
+        sz, gc
     )
-    maxdiag = maximum(abs.(A[:, :, 1]))
-    A ./= maxdiag
-    return A, maxdiag
+    max_diag = maximum(abs.(A[:, :, 1]))
+    A ./= max_diag
+    return A, max_diag
 end
 
-function gpu_init_pressure_eq(dx, sz, gc, nthread)
-    A, maxdiag = gpu_pressure_eq_A(dx, sz, gc, nthread)
-    b = CUDA.zeros(Float64, sz...)
-    r = CUDA.zeros(Float64, sz...)
-    return A, b, r, maxdiag
+function gpu_init_pressure_eq(dx, dy, sz, gc, nthread)
+    A, max_diag = gpu_pressure_eq_A(dx, dy, sz, gc, nthread)
+    b = CUDA.zeros(sz...)
+    r = CUDA.zeros(sz...)
+    return A, b, r, max_diag
 end
 
 function cell_residual(A, x, b, i, j)
@@ -50,15 +56,6 @@ function cell_residual(A, x, b, i, j)
     return r
 end
 
-function kernel_residual!(A, x, b, r, sz, gc)
-    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
-    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
-    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
-        r[i, j] = cell_residual(A, x, b, i, j)
-    end
-    nothing
-end
-
 function kernel_colored_sor_sweep!(A, x, b, ω, sz, gc, c)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
@@ -67,33 +64,45 @@ function kernel_colored_sor_sweep!(A, x, b, ω, sz, gc, c)
             x[i, j] += ω*cell_residual(A, x, b, i, j)/A[i, j, 1]
         end
     end
-    nothing
+    return nothing
 end
 
-function gpu_sor!(A, x, b, r, ω, maxerr, maxit, sz, gc, nthread)
-    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
+function kernel_residual!(A, x, b, r, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
+        r[i, j] = cell_residual(A, x, b, i, j)
+    end
+    return nothing
+end
+
+function gpu_sor!(A, x, b, r, ω, sz, gc, max_err, max_it, nthread)
+    nblock = (
+        cld(sz[1], nthread[1]),
+        cld(sz[2], nthread[2])
+    )
     it = 0
-    errmag = 0
-    ncell_effective = (sz[1] - 2*gc)*(sz[2] - 2*gc)
+    err = 0
     while true
         @cuda threads=nthread blocks=nblock kernel_colored_sor_sweep!(
-            A, x, b, ω, sz, gc, 0
+            A, x, b, ω,
+            sz, gc, 0
         )
         @cuda threads=nthread blocks=nblock kernel_colored_sor_sweep!(
-            A, x, b, ω, sz, gc, 1
+            A, x, b, ω,
+            sz, gc, 1
         )
         @cuda threads=nthread blocks=nblock kernel_residual!(
-            A, x, b, r, sz, gc
+            A, x, b, r,
+            sz, gc
         )
-        errmag = norm(r)
-        errmag = errmag / sqrt(ncell_effective)
+        err = norm(r)
+        ncell = prod(sz .- 2*gc)
+        err = err/sqrt(ncell)
         it += 1
-        if errmag <= maxerr || it >= maxit
+        if err <= max_err || it >= max_it
             break
         end
-        if errmag > 1 || isnan(errmag)
-            error("linear solver failed to converge, |r|/N = $errmag")
-        end
     end
-    return it, errmag
+    return it, err
 end

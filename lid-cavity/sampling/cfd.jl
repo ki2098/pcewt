@@ -1,115 +1,201 @@
 using LinearAlgebra
 using CUDA
 
-function utopia_convection(fww, fw, fc, fe, fee, u, dx)
-    return (u*(- fee + 8*fe - 8*fw + fww) + abs(u)*(fee - 4*fe + 6*fc - 4*fw + fww))/(12*dx)
+function utopia_convection(fww, fw, fc, fe, fee, uW, uc, uE, dx)
+    xE = uE*(fw - 27*fc + 27*fe - fee)/(24*dx)
+    xW = uW*(fww - 27*fw + 27*fc - fe)/(24*dx)
+    xA = abs(uc)*(fww - 4*fw + 6*fc - 4*fe + fee)/(12*dx)
+    return 0.5*(xE + xW) + xA
 end
 
-function kernel_pseudo_U!(unew, vnew, u, v, μ, dx, dt, sz, gc)
+function cell_convection(f, uW, uc, uE, vS, vc, vN, dx, dy, i, j)
+    fc  = f[i, j]
+    fe  = f[i + 1, j]
+    fee = f[i + 2, j]
+    fw  = f[i - 1, j]
+    fww = f[i - 2, j]
+    fn  = f[i, j + 1]
+    fnn = f[i, j + 2]
+    fs  = f[i, j - 1]
+    fss = f[i, j - 2]
+    udfdx = utopia_convection(fww, fw, fc, fe, fee, uW, uc, uE, dx)
+    vdfdy = utopia_convection(fss, fs, fc, fn, fnn, vS, vc, vN, dy)
+    return udfdx + vdfdy
+end
+
+function cell_diffusion(f, μ, dx, dy, i, j)
+    fc = f[i, j]
+    fe = f[i + 1, j]
+    fw = f[i - 1, j]
+    fn = f[i, j + 1]
+    fs = f[i, j - 1]
+    d2fdx2 = (fe - 2*fc + fw)/(dx^2)
+    d2fdy2 = (fn - 2*fc + fs)/(dy^2)
+    return μ*(d2fdx2 + d2fdy2)
+end
+
+function kernel_pseudo_U!(ut, vt, u, v, uu, vv, dx, dy, dt, μ, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
-        uc  = u[i    , j]
-        ue  = u[i + 1, j]
-        uee = u[i + 2, j]
-        uw  = u[i - 1, j]
-        uww = u[i - 2, j]
-        un  = u[i, j + 1]
-        unn = u[i, j + 2]
-        us  = u[i, j - 1]
-        uss = u[i, j - 2]
-        vc  = v[i    , j]
-        ve  = v[i + 1, j]
-        vee = v[i + 2, j]
-        vw  = v[i - 1, j]
-        vww = v[i - 2, j]
-        vn  = v[i, j + 1]
-        vnn = v[i, j + 2]
-        vs  = v[i, j - 1]
-        vss = v[i, j - 2]
-
-        uux = utopia_convection(
-            uww, uw, uc, ue, uee, uc, dx
-        )
-        vuy = utopia_convection(
-            uss, us, uc, un, unn, vc, dx
-        )
-        uvx = utopia_convection(
-            vww, vw, vc, ve, vee, uc, dx
-        )
-        vvy = utopia_convection(
-            vss, vs, vc, vn, vnn, vc, dx
-        )
-        uxx = (ue - 2*uc + uw)/(dx^2)
-        uyy = (un - 2*uc + us)/(dx^2)
-        vxx = (ve - 2*vc + vw)/(dx^2)
-        vyy = (vn - 2*vc + vs)/(dx^2)
-        unew[i, j] = uc + dt*(- (uux + vuy) + μ*(uxx + uyy))
-        vnew[i, j] = vc + dt*(- (uvx + vvy) + μ*(vxx + vyy))
+        uc = ut[i, j]
+        vc = vt[i, j]
+        uE = uu[i, j]
+        uW = uu[i - 1, j]
+        vN = vv[i, j]
+        vS = vv[i, j - 1]
+        u_conv = cell_convection(ut, uW, uc, uE, vS, vc, vN, dx, dy, i, j)
+        u_diff = cell_diffusion(ut, μ, dx, dy, i, j)
+        v_conv = cell_convection(vt, uW, uc, uE, vS, vc, vN, dx, dy, i, j)
+        v_diff = cell_diffusion(vt, μ, dx, dy, i, j)
+        u[i, j] = uc + dt*(- u_conv + u_diff)
+        v[i, j] = vc + dt*(- v_conv + v_diff)
     end
-    nothing
+    return nothing
 end
 
-function cell_divU(u, v, dx, i, j)
-    ue = u[i + 1, j]
-    uw = u[i - 1, j]
-    vn = v[i, j + 1]
-    vs = v[i, j - 1]
-    return (ue - uw + vn - vs)/(2*dx)
+function kernel_interpolate_uu!(u, uu, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc-1 && gc < j <= sz[2]-gc
+        uu[i, j] = (u[i, j] + u[i + 1, j])/2
+    end
+    return nothing
 end
 
-function kernel_pressure_eq_b!(u, v, b, dx, dt, maxdiag, sz, gc)
+function kernel_interpolate_vv!(v, vv, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc-1
+        vv[i, j] = (v[i, j] + v[i, j + 1])/2
+    end
+    return nothing
+end
+
+function cell_div_U(uu, vv, dx, dy, i, j)
+    uE = uu[i, j]
+    uW = uu[i - 1, j]
+    vN = vv[i, j]
+    vS = vv[i, j - 1]
+    return (uE - uW)/dx + (vN - vS)/dy
+end
+
+function kernel_pressure_eq_rhs!(uu, vv, b, dx, dy, dt, max_diag, sz, gc)
     i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
-        b[i, j] = cell_divU(u, v, dx, i, j)/(dt*maxdiag)
+        b[i, j] = cell_div_U(uu, vv, dx, dy, i, j)/(dt*max_diag)
     end
-    nothing
+    return nothing
 end
 
-function gpu_pseudo_U!(unew, vnew, u, v, b, μ, dx, dt, maxdiag, sz, gc, nthread)
-    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
+function kernel_update_U_by_grad_p!(u, v, p, dx, dy, dt, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
+        dpdx = (p[i + 1, j] - p[i - 1, j])/(2*dx)
+        dpdy = (p[i, j + 1] - p[i, j - 1])/(2*dy)
+        u[i, j] -= dt*dpdx
+        v[i, j] -= dt*dpdy
+    end
+    return nothing
+end
+
+function kernel_update_uu_by_dpdx!(uu, p, dx, dt, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc-1 && gc < j <= sz[2]-gc
+        dpdx = (p[i + 1, j] - p[i, j])/dx
+        uu[i, j] -= dt*dpdx
+    end
+    return nothing
+end
+
+function kernel_update_vv_by_dpdy!(vv, p, dy, dt, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc-1
+        dpdy = (p[i, j + 1] - p[i, j])/dy
+        vv[i, j] -= dt*dpdy
+    end
+    return nothing
+end
+
+function kernel_div_U!(uu, vv, div_U, dx, dy, sz, gc)
+    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
+    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
+    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
+        div_U[i, j] = cell_div_U(uu, vv, dx, dy, i, j)
+    end
+    return nothing
+end
+
+function gpu_predict_U!(ut, vt, u, v, uu, vv, dx, dy, dt, μ, sz, gc, nthread)
+    nblock = (
+        cld(sz[1], nthread[1]),
+        cld(sz[2], nthread[2])
+    )
     @cuda threads=nthread blocks=nblock kernel_pseudo_U!(
-        unew, vnew, u, v, μ, dx, dt, sz, gc
+        ut, vt, u, v, uu, vv,
+        dx, dy, dt, μ,
+        sz, gc
     )
-    @cuda threads=nthread blocks=nblock kernel_pressure_eq_b!(
-        unew, vnew, b, dx, dt, maxdiag, sz, gc
+    @cuda threads=nthread blocks=nblock kernel_interpolate_uu!(
+        u, uu,
+        sz, gc
     )
-end
-
-function kernel_update_U!(u, v, p, dx, dt, sz, gc)
-    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
-    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
-    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
-        u[i, j] -= dt*(p[i+1, j] - p[i-1, j])/(2*dx)
-        v[i, j] -= dt*(p[i, j+1] - p[i, j-1])/(2*dx)
-    end
-    nothing
-end
-
-function gpu_update_U!(u, v, p, dx, dt, sz, gc, nthread)
-    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
-    @cuda threads=nthread blocks=nblock kernel_update_U!(
-        u, v, p, dx, dt, sz, gc
+    @cuda threads=nthread blocks=nblock kernel_interpolate_vv!(
+        v, vv,
+        sz, gc
     )
 end
 
-function kernel_divU!(u, v, divU, dx, sz, gc)
-    i = (blockIdx().x - 1)*blockDim().x + threadIdx().x
-    j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
-    if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
-        divU[i, j] = cell_divU(u, v, dx, i, j)
-    end
-    nothing
+function gpu_pressure_eq_b!(uu, vv, b, dx, dy, dt, max_diag, sz, gc, nthread)
+    nblock = (
+        cld(sz[1], nthread[1]),
+        cld(sz[2], nthread[2])
+    )
+    @cuda threads=nthread blocks=nblock kernel_pressure_eq_rhs!(
+        uu, vv, b,
+        dx, dy, dt, max_diag,
+        sz, gc
+    ) 
 end
 
-function gpu_divU!(u, v, divU, dx, sz, gc, nthread)
-    nblock = (cld(sz[1], nthread[1]), cld(sz[2], nthread[2]))
-    @cuda threads=nthread blocks=nblock kernel_divU!(
-        u, v, divU, dx, sz, gc
+function gpu_update_U!(u, v, uu, vv, p, dx, dy, dt, sz, gc, nthread)
+    nblock = (
+        cld(sz[1], nthread[1]),
+        cld(sz[2], nthread[2])
     )
-    mag = norm(divU)
+    @cuda threads=nthread blocks=nblock kernel_update_U_by_grad_p!(
+        u, v, p,
+        dx, dy, dt,
+        sz, gc
+    )
+    @cuda threads=nthread blocks=nblock kernel_update_uu_by_dpdx!(
+        uu, p,
+        dx, dt,
+        sz, gc
+    )
+    @cuda threads=nthread blocks=nblock kernel_update_vv_by_dpdy!(
+        vv, p,
+        dy, dt,
+        sz, gc
+    )
+end
+
+function gpu_div_U!(uu, vv, div_U, dx, dy, sz, gc, nthread)
+    nblock = (
+        cld(sz[1], nthread[1]),
+        cld(sz[2], nthread[2])
+    )
+    @cuda threads=nthread blocks=nblock kernel_div_U!(
+        uu, vv, div_U,
+        dx, dy,
+        sz, gc
+    )
+    err = norm(div_U)
     ncell = prod(sz .- 2*gc)
-    mag = mag/sqrt(ncell)
-    return mag
+    err = err/sqrt(ncell)
+    return err
 end

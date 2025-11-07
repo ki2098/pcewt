@@ -1,8 +1,8 @@
 include("solver.jl")
 
 L=1
-N=128
-Re=1000
+N=100
+Re=400
 T=30
 dt=1e-3
 
