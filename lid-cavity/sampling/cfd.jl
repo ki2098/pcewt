@@ -82,7 +82,7 @@ function kernel_update_U!(u, v, p, dx, dt, sz, gc)
     j = (blockIdx().y - 1)*blockDim().y + threadIdx().y
     if gc < i <= sz[1]-gc && gc < j <= sz[2]-gc
         u[i, j] -= dt*(p[i+1, j] - p[i-1, j])/(2*dx)
-        v[i, j] -= dt*(p[i, j+1] - p[i, j+1])/(2*dx)
+        v[i, j] -= dt*(p[i, j+1] - p[i, j-1])/(2*dx)
     end
     nothing
 end
