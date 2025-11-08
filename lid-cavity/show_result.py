@@ -103,9 +103,9 @@ def plot_variable(varname: str):
     plt.plot(vy, mc_var_vline, label=f'Monte Carlo (100 samples) along x = {x_plot}', linewidth=1, color='black', alpha=0.5)
     plt.plot(hx, mc_var_hline, label=f'Monte Carlo (100 samples) along y = {y_plot}', linewidth=1, color='black', ls=':', alpha=0.5)
     if varname == 'E[u]':
-        plt.scatter(ghia_vy, ghia_u_vline, label=f'Ghia (1982)', marker='D', c='#00c000', s=50)
+        plt.scatter(ghia_vy, ghia_u_vline, label=f'Ghia (1982)', marker='D', c='#00c000', s=25)
     elif varname == 'E[v]':
-        plt.scatter(ghia_hx, ghia_v_hline, label=f'Ghia (1982)', marker='D', c='#00c000', s=50)
+        plt.scatter(ghia_hx, ghia_v_hline, label=f'Ghia (1982)', marker='D', c='#00c000', s=25)
     plt.xlabel('x or y')
     plt.ylabel(varname)
     plt.title(f'{varname} along line x={x_plot} and line y={y_plot}')

@@ -7,7 +7,7 @@ while sampleId <= nSample
     ulid = x[sampleId]*σ + μ
     println("monte carlo case $sampleId, ulid=$ulid")
     try
-        run_solver(ulid, L, N, Re, T, dt, "data/mc_$sampleId.csv")
+        run_solver(ulid, nu, L, N, T, dt, "data/mc_$sampleId.csv")
     catch e
         println("error = $e, retry")
         continue

@@ -26,7 +26,7 @@ struct Solve
     y
     dx
     dy
-    Re
+    nu
     dt
     max_step
     sz
@@ -38,8 +38,8 @@ function info(sol::Solve)
     println("size = ($(sz[1]) $(sz[2]))")
     gc = sol.gc
     println("gc = $gc")
-    Re = sol.Re
-    println("Re = $Re")
+    nu = sol.nu
+    println("nu = $nu")
     maxDiag = sol.max_diag
     println("max diag(A) = $maxDiag")
     uLid = sol.u_lid
@@ -48,7 +48,7 @@ function info(sol::Solve)
     println("n step = $maxStep")
 end
 
-function init(L, division, u_lid, Re, T, dt)
+function init(L, division, u_lid, nu, T, dt)
     gc = 2
     sz = (division + 2*gc, division + 2*gc)
     dx = dy = L/division
@@ -73,7 +73,7 @@ function init(L, division, u_lid, Re, T, dt)
         u, v, ut, vt, uu, vv, div_U, u_lid,
         p, A, b, r, max_diag,
         x, y, dx, dy,
-        Re, dt, max_step,
+        nu, dt, max_step,
         sz, gc
     )
 
@@ -88,7 +88,7 @@ function time_integral!(sol::Solve)
 
     gpu_predict_U!(
         sol.ut, sol.vt, sol.u, sol.v, sol.uu, sol.vv,
-        sol.dx, sol.dy, sol.dt, 1/sol.Re,
+        sol.dx, sol.dy, sol.dt, sol.nu,
         sol.sz, sol.gc, nthread_2d
     )
 
@@ -164,8 +164,8 @@ function write_csv(path::String, sol::Solve)
     CSV.write(path, df)
 end
 
-function run_solver(uLid, L, N, Re, T, dt, oPath)
-    sol = init(L, N, uLid, Re, T, dt)
+function run_solver(uLid, nu, L, N , T, dt, oPath)
+    sol = init(L, N, uLid, nu, T, dt)
     for step = 1:sol.max_step
         lsIt, lsErr, divMag = time_integral!(sol)
         @printf(
