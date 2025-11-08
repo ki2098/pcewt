@@ -98,8 +98,8 @@ def plot_variable(varname: str):
     plt.figure()
     plt.plot(vy, ipce_var_vline, label=f'iPCE (P=5) along x = {x_plot}', linewidth=1, color='blue')
     plt.plot(hx, ipce_var_hline, label=f'iPCE (P=5) along y = {y_plot}', linewidth=1, color='blue', ls=':')
-    plt.scatter(vy[::3], nipce_var_vline[::3], label=f'niPCE (9 samples) along x = {x_plot}', marker='+', s=50, c='red')
-    plt.scatter(hx[::3], nipce_var_hline[::3], label=f'niPCE (9 samples) along y = {y_plot}', marker='.', c='red')
+    plt.scatter(vy[::3], nipce_var_vline[::3], label=f'niPCE (6 samples) along x = {x_plot}', marker='+', s=50, c='red')
+    plt.scatter(hx[::3], nipce_var_hline[::3], label=f'niPCE (6 samples) along y = {y_plot}', marker='.', c='red')
     plt.plot(vy, mc_var_vline, label=f'Monte Carlo (100 samples) along x = {x_plot}', linewidth=1, color='black', alpha=0.5)
     plt.plot(hx, mc_var_hline, label=f'Monte Carlo (100 samples) along y = {y_plot}', linewidth=1, color='black', ls=':', alpha=0.5)
     if varname == 'E[u]':
