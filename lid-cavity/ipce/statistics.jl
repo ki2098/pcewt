@@ -38,15 +38,15 @@ p_var = zeros(row_cnt)
 end
 
 output_df = DataFrame(
-    x = input_df.x,
-    y = input_df.y,
-    z = input_df.z,
-    E_u = input_df[!, u_names[1]],
-    Var_u = u_var,
-    E_v = input_df[!, v_names[1]],
-    Var_v = v_var,
-    E_p = input_df[!, p_names[1]],
-    Var_p = p_var
+    "x" => input_df.x,
+    "y" => input_df.y,
+    "z" => input_df.z,
+    "E[u]" => input_df[!, u_names[1]],
+    "Var[u]" => u_var,
+    "E[v]" => input_df[!, v_names[1]],
+    "Var[v]" => v_var,
+    "E[p]" => input_df[!, p_names[1]],
+    "Var[p]" => p_var
 )
 
 CSV.write("statistics.$input_fname", output_df)
